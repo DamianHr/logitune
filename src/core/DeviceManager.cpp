@@ -1,0 +1,514 @@
+#include "DeviceManager.h"
+#include "hidpp/features/Battery.h"
+#include "hidpp/features/DeviceName.h"
+
+#include <QDateTime>
+#include <QDebug>
+#include <QSocketNotifier>
+
+#include <libudev.h>
+
+namespace logitune {
+
+// ---------------------------------------------------------------------------
+// Static helpers
+// ---------------------------------------------------------------------------
+
+bool DeviceManager::isReceiver(uint16_t pid)
+{
+    return pid == hidpp::kPidBoltReceiver || pid == hidpp::kPidUnifyReceiver;
+}
+
+bool DeviceManager::isDirectDevice(uint16_t pid)
+{
+    return pid == hidpp::kPidMxMaster3s;
+}
+
+uint8_t DeviceManager::deviceIndexForDirect()
+{
+    return hidpp::kDeviceIndexDirect; // 0xFF
+}
+
+uint8_t DeviceManager::deviceIndexForReceiver(int slot)
+{
+    return static_cast<uint8_t>(slot);
+}
+
+// ---------------------------------------------------------------------------
+// Construction / destruction
+// ---------------------------------------------------------------------------
+
+DeviceManager::DeviceManager(QObject *parent)
+    : QObject(parent)
+{
+}
+
+DeviceManager::~DeviceManager()
+{
+    stopIoThread();
+
+    if (m_udevNotifier) {
+        m_udevNotifier->setEnabled(false);
+        delete m_udevNotifier;
+        m_udevNotifier = nullptr;
+    }
+    if (m_udevMon) {
+        udev_monitor_unref(m_udevMon);
+        m_udevMon = nullptr;
+    }
+    if (m_udev) {
+        udev_unref(m_udev);
+        m_udev = nullptr;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// start()
+// ---------------------------------------------------------------------------
+
+void DeviceManager::start()
+{
+    // Initialize libudev
+    m_udev = udev_new();
+    if (!m_udev) {
+        qWarning() << "DeviceManager: failed to create udev context";
+        return;
+    }
+
+    m_udevMon = udev_monitor_new_from_netlink(m_udev, "udev");
+    if (!m_udevMon) {
+        qWarning() << "DeviceManager: failed to create udev monitor";
+        return;
+    }
+
+    udev_monitor_filter_add_match_subsystem_devtype(m_udevMon, "hidraw", nullptr);
+    udev_monitor_enable_receiving(m_udevMon);
+
+    int fd = udev_monitor_get_fd(m_udevMon);
+    m_udevNotifier = new QSocketNotifier(fd, QSocketNotifier::Read, this);
+    connect(m_udevNotifier, &QSocketNotifier::activated, this, &DeviceManager::onUdevReady);
+
+    scanExistingDevices();
+}
+
+// ---------------------------------------------------------------------------
+// scanExistingDevices()
+// ---------------------------------------------------------------------------
+
+void DeviceManager::scanExistingDevices()
+{
+    struct udev_enumerate *enumerate = udev_enumerate_new(m_udev);
+    if (!enumerate)
+        return;
+
+    udev_enumerate_add_match_subsystem(enumerate, "hidraw");
+    udev_enumerate_scan_devices(enumerate);
+
+    struct udev_list_entry *devices = udev_enumerate_get_list_entry(enumerate);
+    struct udev_list_entry *entry;
+
+    udev_list_entry_foreach(entry, devices) {
+        const char *syspath = udev_list_entry_get_name(entry);
+        struct udev_device *dev = udev_device_new_from_syspath(m_udev, syspath);
+        if (!dev)
+            continue;
+
+        // Get parent HID device for vendor/product info
+        struct udev_device *hiddev = udev_device_get_parent_with_subsystem_devtype(
+            dev, "hid", nullptr);
+
+        bool isLogitech = false;
+        if (hiddev) {
+            const char *vid = udev_device_get_property_value(hiddev, "HID_ID");
+            if (vid) {
+                // HID_ID is "BUS:VID:PID" in hex
+                unsigned bus = 0, vendorId = 0, productId = 0;
+                if (sscanf(vid, "%x:%x:%x", &bus, &vendorId, &productId) == 3) {
+                    isLogitech = (vendorId == hidpp::kVendorLogitech);
+                }
+            }
+        }
+
+        if (isLogitech) {
+            const char *devNode = udev_device_get_devnode(dev);
+            if (devNode && !m_connected) {
+                probeDevice(QString::fromUtf8(devNode));
+            }
+        }
+
+        udev_device_unref(dev);
+    }
+
+    udev_enumerate_unref(enumerate);
+}
+
+// ---------------------------------------------------------------------------
+// onUdevReady() — slot called when udev fd becomes readable
+// ---------------------------------------------------------------------------
+
+void DeviceManager::onUdevReady()
+{
+    struct udev_device *dev = udev_monitor_receive_device(m_udevMon);
+    if (!dev)
+        return;
+
+    const char *action  = udev_device_get_action(dev);
+    const char *devNode = udev_device_get_devnode(dev);
+
+    if (action && devNode) {
+        onUdevEvent(QString::fromUtf8(action), QString::fromUtf8(devNode));
+    }
+
+    udev_device_unref(dev);
+}
+
+// ---------------------------------------------------------------------------
+// onUdevEvent()
+// ---------------------------------------------------------------------------
+
+void DeviceManager::onUdevEvent(const QString &action, const QString &devNode)
+{
+    if (action == QLatin1String("add")) {
+        // Track available transports for failover
+        if (!m_availableTransports.contains(devNode))
+            m_availableTransports.append(devNode);
+
+        if (!m_connected)
+            probeDevice(devNode);
+    } else if (action == QLatin1String("remove")) {
+        m_availableTransports.removeAll(devNode);
+
+        if (m_device && m_device->info().path == devNode) {
+            // Current device disconnected — try failover
+            QString failoverPath;
+            for (const QString &path : m_availableTransports) {
+                if (path != devNode) {
+                    failoverPath = path;
+                    break;
+                }
+            }
+
+            disconnectDevice();
+
+            if (!failoverPath.isEmpty()) {
+                probeDevice(failoverPath);
+                if (m_connected)
+                    emit transportSwitched(m_connectionType);
+            } else {
+                emit deviceDisconnected();
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// probeDevice()
+// ---------------------------------------------------------------------------
+
+void DeviceManager::probeDevice(const QString &devNode)
+{
+    auto device = std::make_unique<hidpp::HidrawDevice>(devNode);
+    if (!device->open()) {
+        qDebug() << "DeviceManager: cannot open" << devNode;
+        return;
+    }
+
+    auto info = device->info();
+    if (info.vendorId != hidpp::kVendorLogitech) {
+        return;
+    }
+
+    uint16_t pid = info.productId;
+    uint8_t deviceIndex = 0xFF;
+    QString connType;
+
+    if (isReceiver(pid)) {
+        // Bolt receiver PID -> connection type "Bolt"; Unifying -> "Bolt" is debatable
+        // but per spec: Bolt = 0xc548, Unifying = 0xc52b. We label both as "Bolt" for
+        // simplicity since MX Master 3S only supports Bolt among receivers.
+        connType = (pid == hidpp::kPidBoltReceiver) ? QStringLiteral("Bolt")
+                                                    : QStringLiteral("Bolt");
+
+        // Probe device indices 1-6
+        auto transport = std::make_unique<hidpp::Transport>(device.get(), nullptr);
+        bool found = false;
+        for (int slot = 1; slot <= 6; ++slot) {
+            // Send a Root.getFeature(0x0000) ping as a presence check
+            hidpp::Report ping;
+            ping.reportId    = hidpp::kShortReportId;
+            ping.deviceIndex = static_cast<uint8_t>(slot);
+            ping.featureIndex = 0x00; // Root feature index
+            ping.functionId  = 0x01; // getFeature function
+            ping.softwareId  = 0x0A;
+            ping.params[0]   = 0x00;
+            ping.params[1]   = 0x00;
+            ping.paramLength = 2;
+
+            auto resp = transport->sendRequest(ping, 500);
+            if (resp.has_value() && !resp->isError()) {
+                deviceIndex = static_cast<uint8_t>(slot);
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            return;
+        }
+    } else if (isDirectDevice(pid)) {
+        deviceIndex = deviceIndexForDirect();
+        connType = QStringLiteral("Bluetooth");
+    } else {
+        // Unknown Logitech device — skip
+        return;
+    }
+
+    // Store device path for failover tracking
+    if (!m_availableTransports.contains(devNode))
+        m_availableTransports.append(devNode);
+
+    // Take ownership
+    m_device = std::move(device);
+    m_deviceIndex = deviceIndex;
+    m_connectionType = connType;
+
+    // Create transport (owned by DeviceManager, lives on main thread initially)
+    m_transport = std::make_unique<hidpp::Transport>(m_device.get(), nullptr);
+
+    // Connect notification handler
+    connect(m_transport.get(), &hidpp::Transport::notificationReceived,
+            this, &DeviceManager::handleNotification);
+    connect(m_transport.get(), &hidpp::Transport::deviceDisconnected,
+            this, &DeviceManager::disconnectDevice);
+
+    // Enumerate features and read initial state
+    enumerateAndSetup();
+
+    // Start I/O thread
+    startIoThread();
+}
+
+// ---------------------------------------------------------------------------
+// enumerateAndSetup()
+// ---------------------------------------------------------------------------
+
+void DeviceManager::enumerateAndSetup()
+{
+    m_features = std::make_unique<hidpp::FeatureDispatcher>();
+
+    bool ok = m_features->enumerate(m_transport.get(), m_deviceIndex);
+    if (!ok) {
+        qWarning() << "DeviceManager: feature enumeration failed";
+        // Continue anyway — device is still usable
+    }
+
+    // Read device name
+    QString name;
+    if (m_features->hasFeature(hidpp::FeatureId::DeviceName)) {
+        auto resp = m_features->call(m_transport.get(), m_deviceIndex,
+                                     hidpp::FeatureId::DeviceName,
+                                     hidpp::features::DeviceName::kFnGetNameLength);
+        if (resp.has_value()) {
+            int nameLen = hidpp::features::DeviceName::parseNameLength(*resp);
+            for (int offset = 0; offset < nameLen; offset += 13) {
+                // HID++ name chunk params: [offset_hi, offset_lo]
+                uint8_t params[2] = {
+                    static_cast<uint8_t>((offset >> 8) & 0xFF),
+                    static_cast<uint8_t>(offset & 0xFF)
+                };
+                auto chunkResp = m_features->call(m_transport.get(), m_deviceIndex,
+                                                  hidpp::FeatureId::DeviceName,
+                                                  hidpp::features::DeviceName::kFnGetName,
+                                                  params);
+                if (chunkResp.has_value())
+                    name += hidpp::features::DeviceName::parseNameChunk(*chunkResp);
+            }
+            name = name.left(nameLen);
+        }
+    }
+
+    if (name.isEmpty())
+        name = QStringLiteral("Logitech Device");
+
+    // Read battery
+    int battLevel = 0;
+    bool battCharging = false;
+    if (m_features->hasFeature(hidpp::FeatureId::BatteryUnified)) {
+        auto resp = m_features->call(m_transport.get(), m_deviceIndex,
+                                     hidpp::FeatureId::BatteryUnified,
+                                     hidpp::features::Battery::kFnGetStatus);
+        if (resp.has_value()) {
+            auto status = hidpp::features::Battery::parseStatus(*resp);
+            battLevel    = status.level;
+            battCharging = status.charging;
+        }
+    }
+
+    // Update state and emit signals
+    bool nameChanged    = (m_deviceName != name);
+    bool levelChanged   = (m_batteryLevel != battLevel);
+    bool chargeChanged  = (m_batteryCharging != battCharging);
+    bool typeChanged    = false; // connectionType already set before this call
+
+    m_deviceName     = name;
+    m_batteryLevel   = battLevel;
+    m_batteryCharging = battCharging;
+
+    m_connected = true;
+    emit deviceConnectedChanged();
+
+    if (nameChanged)    emit deviceNameChanged();
+    if (levelChanged)   emit batteryLevelChanged();
+    if (chargeChanged)  emit batteryChargingChanged();
+    if (typeChanged)    emit connectionTypeChanged();
+
+    // Record response time for sleep/wake tracking
+    m_lastResponseTime = QDateTime::currentMSecsSinceEpoch();
+}
+
+// ---------------------------------------------------------------------------
+// disconnectDevice()
+// ---------------------------------------------------------------------------
+
+void DeviceManager::disconnectDevice()
+{
+    stopIoThread();
+
+    m_features.reset();
+    m_transport.reset();
+    m_device.reset();
+    m_deviceIndex = 0xFF;
+
+    bool wasConnected = m_connected;
+    m_connected      = false;
+    m_deviceName     = QString();
+    m_batteryLevel   = 0;
+    m_batteryCharging = false;
+    m_connectionType  = QString();
+    m_lastResponseTime = 0;
+
+    if (wasConnected) {
+        emit deviceConnectedChanged();
+        emit deviceNameChanged();
+        emit batteryLevelChanged();
+        emit batteryChargingChanged();
+        emit connectionTypeChanged();
+    }
+}
+
+// ---------------------------------------------------------------------------
+// handleNotification()
+// ---------------------------------------------------------------------------
+
+void DeviceManager::handleNotification(const hidpp::Report &report)
+{
+    // Track last response time for sleep/wake detection
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    checkSleepWake();
+    m_lastResponseTime = now;
+
+    // Battery notification (feature index matches BatteryUnified)
+    if (m_features && m_features->hasFeature(hidpp::FeatureId::BatteryUnified)) {
+        auto idx = m_features->featureIndex(hidpp::FeatureId::BatteryUnified);
+        if (idx.has_value() && report.featureIndex == *idx) {
+            auto status = hidpp::features::Battery::parseStatus(report);
+            bool levelChanged   = (m_batteryLevel != status.level);
+            bool chargeChanged  = (m_batteryCharging != status.charging);
+            m_batteryLevel   = status.level;
+            m_batteryCharging = status.charging;
+            if (levelChanged)  emit batteryLevelChanged();
+            if (chargeChanged) emit batteryChargingChanged();
+            return;
+        }
+    }
+
+    // ReprogControls (diverted button) notification
+    if (m_features && m_features->hasFeature(hidpp::FeatureId::ReprogControlsV4)) {
+        auto idx = m_features->featureIndex(hidpp::FeatureId::ReprogControlsV4);
+        if (idx.has_value() && report.featureIndex == *idx) {
+            uint16_t controlId = (static_cast<uint16_t>(report.params[0]) << 8)
+                                 | report.params[1];
+            bool pressed = (report.params[2] != 0);
+            emit divertedButtonPressed(controlId, pressed);
+            return;
+        }
+    }
+
+    // GestureV2 notification
+    if (m_features && m_features->hasFeature(hidpp::FeatureId::GestureV2)) {
+        auto idx = m_features->featureIndex(hidpp::FeatureId::GestureV2);
+        if (idx.has_value() && report.featureIndex == *idx) {
+            int dx = static_cast<int8_t>(report.params[0]);
+            int dy = static_cast<int8_t>(report.params[1]);
+            bool released = (report.params[2] != 0);
+            emit gestureEvent(dx, dy, released);
+            return;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// checkSleepWake()
+// ---------------------------------------------------------------------------
+
+void DeviceManager::checkSleepWake()
+{
+    if (m_lastResponseTime == 0)
+        return;
+
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    constexpr qint64 kSleepThresholdMs = 120000; // 2 minutes
+
+    if ((now - m_lastResponseTime) > kSleepThresholdMs) {
+        qDebug() << "DeviceManager: device woke from sleep, re-enumerating features";
+        // Re-enumerate features and re-read state after wake
+        if (m_transport && m_device && m_device->isOpen()) {
+            enumerateAndSetup();
+        }
+        emit deviceWoke();
+    }
+}
+
+// ---------------------------------------------------------------------------
+// I/O thread management
+// ---------------------------------------------------------------------------
+
+void DeviceManager::startIoThread()
+{
+    if (m_ioThread.isRunning())
+        return;
+
+    hidpp::Transport *transport = m_transport.get();
+    connect(&m_ioThread, &QThread::started, transport, &hidpp::Transport::run,
+            Qt::DirectConnection);
+
+    m_ioThread.start();
+}
+
+void DeviceManager::stopIoThread()
+{
+    if (!m_ioThread.isRunning())
+        return;
+
+    if (m_transport)
+        m_transport->stop();
+
+    m_ioThread.quit();
+    m_ioThread.wait(3000);
+}
+
+// ---------------------------------------------------------------------------
+// Property accessors
+// ---------------------------------------------------------------------------
+
+bool DeviceManager::deviceConnected() const { return m_connected; }
+QString DeviceManager::deviceName() const { return m_deviceName; }
+int DeviceManager::batteryLevel() const { return m_batteryLevel; }
+bool DeviceManager::batteryCharging() const { return m_batteryCharging; }
+QString DeviceManager::connectionType() const { return m_connectionType; }
+
+hidpp::FeatureDispatcher *DeviceManager::features() const { return m_features.get(); }
+hidpp::Transport *DeviceManager::transport() const { return m_transport.get(); }
+uint8_t DeviceManager::deviceIndex() const { return m_deviceIndex; }
+
+} // namespace logitune
