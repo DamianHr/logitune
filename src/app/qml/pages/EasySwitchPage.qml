@@ -14,8 +14,6 @@ Item {
     Column {
         anchors.centerIn: parent
         spacing: 24
-        horizontalAlignment: Column.AlignHCenter
-        width: implicitWidth
 
         Text {
             text: "Easy-Switch"
