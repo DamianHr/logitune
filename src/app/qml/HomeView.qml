@@ -5,6 +5,7 @@ import Logitune
 
 Item {
     id: root
+    signal deviceClicked()
 
     // ── Top bar ──────────────────────────────────────────────────────────────
     RowLayout {
@@ -127,9 +128,7 @@ Item {
                 MouseArea {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        StackView.view.push(deviceViewComponent)
-                    }
+                    onClicked: root.deviceClicked()
                 }
 
                 layer.enabled: cardHover.hovered
@@ -175,6 +174,4 @@ Item {
         }
     }
 
-    // Expose deviceViewComponent reference so children can push to the stack
-    property Component deviceViewComponent: Component { DeviceView {} }
 }

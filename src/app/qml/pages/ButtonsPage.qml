@@ -21,19 +21,19 @@ Item {
     // The mouse render is 200×280, centred at (100, 140) relative to itself.
     readonly property var calloutLayout: [
         // 0: Left click — top-left
-        { dx: -140, dy: -110, lineX: -50, lineY:  -70 },
+        { dx: -180, dy: -80, lineX: -50, lineY:  -70 },
         // 1: Right click — top-right
-        { dx:  100, dy: -110, lineX:  50, lineY:  -70 },
+        { dx:  130, dy: -80, lineX:  50, lineY:  -70 },
         // 2: Middle / scroll — top-centre
         { dx:  -30, dy: -140, lineX:   0, lineY:  -80 },
         // 3: Back — left side lower
-        { dx: -150, dy:   50, lineX: -90, lineY:   30 },
+        { dx: -180, dy:  110, lineX: -90, lineY:   50 },
         // 4: Forward — left side upper
-        { dx: -150, dy:  -20, lineX: -90, lineY:  -40 },
+        { dx: -180, dy:  -10, lineX: -90, lineY:  -40 },
         // 5: Thumb / gesture — left middle
-        { dx: -150, dy:   15, lineX: -90, lineY:   -5 },
+        { dx: -180, dy:   50, lineX: -90, lineY:   -5 },
         // 6: Top (behind scroll) — right side upper
-        { dx:  110, dy:  -60, lineX:  70, lineY:  -70 },
+        { dx:  130, dy:   20, lineX:  70, lineY:  -70 },
     ]
 
     // Convenience: button display data (mirrors ButtonModel defaults)

@@ -34,36 +34,10 @@ Item {
             NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
         }
 
-        // ── Mouse render (placeholder rectangle styled as a mouse silhouette) ──
-        Rectangle {
+        // ── Mouse render (reuses the shared DeviceRender component) ──
+        DeviceRender {
             id: mouseRender
             anchors.centerIn: parent
-            width:  120
-            height: 190
-            radius: 55
-            color:  "#DCDCDC"
-            border.color: "#BBBBBB"
-            border.width: 2
-
-            // Scroll wheel indicator on the render
-            Rectangle {
-                anchors.horizontalCenter: parent.horizontalCenter
-                y: 30
-                width: 18
-                height: 44
-                radius: 9
-                color: "#AAAAAA"
-            }
-
-            // Thumb wheel indicator on the left side of the render
-            Rectangle {
-                anchors.verticalCenter: parent.verticalCenter
-                x: -12
-                width: 10
-                height: 36
-                radius: 5
-                color: "#AAAAAA"
-            }
         }
 
         // ── Scroll wheel callout — top-right ───────────────────────────────────
@@ -150,8 +124,11 @@ Item {
         anchors {
             top:    parent.top
             bottom: parent.bottom
-            right:  parent.right
         }
+
+        // Slide in from right: when opened, right edge aligns to parent right edge;
+        // when closed, push fully offscreen to the right.
+        x: root.activePanelType !== "" ? parent.width - width : parent.width
 
         panelType: root.activePanelType
         opened:    root.activePanelType !== ""

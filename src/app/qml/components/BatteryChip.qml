@@ -9,6 +9,7 @@ Rectangle {
     height: 32
     radius: 16
     color: "#FFFFFF"
+    visible: chip.level > 0
 
     layer.enabled: true
     layer.effect: null  // Shadow approximated with border for now
@@ -99,10 +100,10 @@ Rectangle {
 
         // Percentage text
         Text {
-            text: chip.level + "%"
+            text: chip.level > 0 ? chip.level + "%" : "--%"
             font.pixelSize: 12
             font.bold: true
-            color: chip.battColor
+            color: chip.level > 0 ? chip.battColor : "#999999"
         }
 
         // Charging indicator

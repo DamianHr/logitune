@@ -2,23 +2,37 @@ import QtQuick
 import QtQuick.Controls
 
 Item {
+    id: root
+
+    // Background
+    Rectangle {
+        anchors.fill: parent
+        color: "#F5F5F5"
+        radius: 12
+    }
+
     Column {
         anchors.centerIn: parent
         spacing: 24
+        horizontalAlignment: Column.AlignHCenter
+        width: implicitWidth
 
         Text {
             text: "Easy-Switch"
             font { pixelSize: 22; bold: true }
             color: "#1A1A1A"
+            anchors.horizontalCenter: parent.horizontalCenter
         }
         Text {
             text: "Switch between up to 3 devices"
             font.pixelSize: 13
             color: "#666666"
+            anchors.horizontalCenter: parent.horizontalCenter
         }
 
         Row {
             spacing: 16
+            anchors.horizontalCenter: parent.horizontalCenter
 
             // 3 channel cards
             Repeater {
@@ -26,9 +40,9 @@ Item {
                 delegate: Rectangle {
                     width: 160; height: 120
                     radius: 12
-                    color: "#FFFFFF"
+                    color: index === 0 ? Qt.rgba(0.482, 0.380, 1.0, 0.06) : "#FFFFFF"
                     border.color: index === 0 ? "#7B61FF" : "#E0E0E0"
-                    border.width: index === 0 ? 2 : 1
+                    border.width: index === 0 ? 3 : 1
 
                     Column {
                         anchors.centerIn: parent
@@ -47,7 +61,7 @@ Item {
                             anchors.horizontalCenter: parent.horizontalCenter
                         }
                         Text {
-                            text: index === 0 ? "Bluetooth" : "—"
+                            text: index === 0 ? "Bluetooth" : "\u2014"
                             font.pixelSize: 10
                             color: "#AAAAAA"
                             anchors.horizontalCenter: parent.horizontalCenter
@@ -61,6 +75,7 @@ Item {
             text: "Press the Easy-Switch button on your mouse to change channels"
             font.pixelSize: 11
             color: "#999999"
+            anchors.horizontalCenter: parent.horizontalCenter
         }
     }
 }

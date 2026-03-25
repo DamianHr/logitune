@@ -60,7 +60,7 @@ Item {
     // ── Card ───────────────────────────────────────────────────────────────
     Rectangle {
         id: card
-        implicitWidth:  Math.max(contentCol.implicitWidth + 20, 100)
+        implicitWidth:  contentCol.implicitWidth + 20
         implicitHeight: contentCol.implicitHeight + 16
         radius: 8
         color:  root.selected ? "#7B61FF" : "#FFFFFF"
@@ -88,12 +88,8 @@ Item {
 
         Column {
             id: contentCol
-            anchors {
-                left:   parent.left
-                right:  parent.right
-                top:    parent.top
-                margins: 10
-            }
+            x: 10
+            y: 8
             spacing: 2
 
             // Action name (primary, bold)
@@ -102,8 +98,6 @@ Item {
                 font.pixelSize: 12
                 font.bold: true
                 color: root.selected ? "#FFFFFF" : "#1A1A1A"
-                width: parent.width
-                elide: Text.ElideRight
 
                 Behavior on color { ColorAnimation { duration: 150 } }
             }
@@ -113,8 +107,6 @@ Item {
                 text: root.buttonName
                 font.pixelSize: 10
                 color: root.selected ? Qt.rgba(1,1,1,0.75) : "#888888"
-                width: parent.width
-                elide: Text.ElideRight
 
                 Behavior on color { ColorAnimation { duration: 150 } }
             }

@@ -5,8 +5,8 @@ import QtQuick
 Item {
     id: root
 
-    implicitWidth:  200
-    implicitHeight: 280
+    implicitWidth:  220
+    implicitHeight: 300
 
     signal buttonClicked(int buttonId)
 
@@ -80,12 +80,12 @@ Item {
     }
 
     // ── Button zone overlays (invisible hit areas) ─────────────────────────
-    // Positions are approximate relative to the 200×280 mouse body.
+    // Positions are approximate relative to the 220×300 mouse body.
 
     // Button 0 — Left click (top-left half)
     MouseArea {
-        x: 0; y: 20
-        width: 90; height: 110
+        x: 10; y: 20
+        width: 95; height: 120
         cursorShape: Qt.PointingHandCursor
         onClicked: root.buttonClicked(0)
         // Debug: uncomment to visualise zones
@@ -94,8 +94,8 @@ Item {
 
     // Button 1 — Right click (top-right half)
     MouseArea {
-        x: 110; y: 20
-        width: 90; height: 110
+        x: 115; y: 20
+        width: 95; height: 120
         cursorShape: Qt.PointingHandCursor
         onClicked: root.buttonClicked(1)
     }
@@ -104,39 +104,39 @@ Item {
     MouseArea {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.horizontalCenterOffset: 0
-        y: 46; width: 28; height: 64
+        y: 50; width: 30; height: 68
         cursorShape: Qt.PointingHandCursor
         onClicked: root.buttonClicked(2)
     }
 
     // Button 3 — Back (thumb rear, left side lower)
     MouseArea {
-        x: 0; y: 168
-        width: 36; height: 36
+        x: 0; y: 185
+        width: 40; height: 40
         cursorShape: Qt.PointingHandCursor
         onClicked: root.buttonClicked(3)
     }
 
     // Button 4 — Forward (thumb front, left side upper)
     MouseArea {
-        x: 0; y: 130
-        width: 36; height: 36
+        x: 0; y: 140
+        width: 40; height: 40
         cursorShape: Qt.PointingHandCursor
         onClicked: root.buttonClicked(4)
     }
 
     // Button 5 — Thumb / gesture (left side middle)
     MouseArea {
-        x: 0; y: 148
-        width: 36; height: 20
+        x: 0; y: 160
+        width: 40; height: 24
         cursorShape: Qt.PointingHandCursor
         onClicked: root.buttonClicked(5)
     }
 
     // Button 6 — Top (right side behind scroll)
     MouseArea {
-        x: 148; y: 22
-        width: 32; height: 20
+        x: 162; y: 24
+        width: 36; height: 22
         cursorShape: Qt.PointingHandCursor
         onClicked: root.buttonClicked(6)
     }

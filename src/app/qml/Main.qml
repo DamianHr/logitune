@@ -21,7 +21,12 @@ ApplicationWindow {
         initialItem: homeViewComponent
     }
 
-    Component { id: homeViewComponent; HomeView {} }
+    Component {
+        id: homeViewComponent
+        HomeView {
+            onDeviceClicked: mainStack.push(deviceViewComponent)
+        }
+    }
     Component { id: deviceViewComponent; DeviceView {} }
 
     // Permission error overlay
