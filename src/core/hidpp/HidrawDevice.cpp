@@ -29,7 +29,7 @@ bool HidrawDevice::open()
         return true; // already open
 
     const QByteArray pathBytes = m_path.toLocal8Bit();
-    m_fd = ::open(pathBytes.constData(), O_RDWR | O_NONBLOCK);
+    m_fd = ::open(pathBytes.constData(), O_RDWR);
     if (m_fd < 0)
         return false;
 
@@ -72,7 +72,12 @@ int HidrawDevice::writeReport(std::span<const uint8_t> data)
 {
     if (m_fd < 0)
         return -1;
-    return static_cast<int>(::write(m_fd, data.data(), data.size()));
+    int ret = static_cast<int>(::write(m_fd, data.data(), data.size()));
+    if (ret < 0) {
+        fprintf(stderr, "[HidrawDevice] write(%s) failed: %s (errno=%d) size=%zu\n",
+                qPrintable(m_path), strerror(errno), errno, data.size());
+    }
+    return ret;
 }
 
 std::vector<uint8_t> HidrawDevice::readReport(int timeoutMs)

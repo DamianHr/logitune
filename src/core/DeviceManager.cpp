@@ -97,6 +97,8 @@ void DeviceManager::start()
 
 void DeviceManager::scanExistingDevices()
 {
+    qDebug() << "[DeviceManager] scanning existing hidraw devices...";
+
     struct udev_enumerate *enumerate = udev_enumerate_new(m_udev);
     if (!enumerate)
         return;
@@ -106,6 +108,7 @@ void DeviceManager::scanExistingDevices()
 
     struct udev_list_entry *devices = udev_enumerate_get_list_entry(enumerate);
     struct udev_list_entry *entry;
+    int count = 0;
 
     udev_list_entry_foreach(entry, devices) {
         const char *syspath = udev_list_entry_get_name(entry);
@@ -113,24 +116,31 @@ void DeviceManager::scanExistingDevices()
         if (!dev)
             continue;
 
+        count++;
+        const char *devNode = udev_device_get_devnode(dev);
+
         // Get parent HID device for vendor/product info
         struct udev_device *hiddev = udev_device_get_parent_with_subsystem_devtype(
             dev, "hid", nullptr);
 
         bool isLogitech = false;
+        uint16_t productId = 0;
         if (hiddev) {
             const char *vid = udev_device_get_property_value(hiddev, "HID_ID");
             if (vid) {
                 // HID_ID is "BUS:VID:PID" in hex
-                unsigned bus = 0, vendorId = 0, productId = 0;
-                if (sscanf(vid, "%x:%x:%x", &bus, &vendorId, &productId) == 3) {
+                unsigned bus = 0, vendorId = 0, pid = 0;
+                if (sscanf(vid, "%x:%x:%x", &bus, &vendorId, &pid) == 3) {
                     isLogitech = (vendorId == hidpp::kVendorLogitech);
+                    productId = static_cast<uint16_t>(pid);
                 }
             }
         }
 
         if (isLogitech) {
-            const char *devNode = udev_device_get_devnode(dev);
+            qDebug() << "[DeviceManager] found Logitech device:" << devNode
+                     << "PID:" << Qt::hex << productId
+                     << (isReceiver(productId) ? "(receiver)" : "(direct)");
             if (devNode && !m_connected) {
                 probeDevice(QString::fromUtf8(devNode));
             }
@@ -139,6 +149,7 @@ void DeviceManager::scanExistingDevices()
         udev_device_unref(dev);
     }
 
+    qDebug() << "[DeviceManager] scan complete:" << count << "hidraw devices," << (m_connected ? "connected" : "no device connected");
     udev_enumerate_unref(enumerate);
 }
 
@@ -207,14 +218,17 @@ void DeviceManager::onUdevEvent(const QString &action, const QString &devNode)
 
 void DeviceManager::probeDevice(const QString &devNode)
 {
+    qDebug() << "[DeviceManager] probing" << devNode;
     auto device = std::make_unique<hidpp::HidrawDevice>(devNode);
     if (!device->open()) {
-        qDebug() << "DeviceManager: cannot open" << devNode;
+        qDebug() << "[DeviceManager] cannot open" << devNode << "- permission denied?";
         return;
     }
 
     auto info = device->info();
+    qDebug() << "[DeviceManager] opened" << devNode << "vendor:" << Qt::hex << info.vendorId << "product:" << info.productId;
     if (info.vendorId != hidpp::kVendorLogitech) {
+        qDebug() << "[DeviceManager] not Logitech, skipping";
         return;
     }
 
@@ -229,30 +243,52 @@ void DeviceManager::probeDevice(const QString &devNode)
         connType = (pid == hidpp::kPidBoltReceiver) ? QStringLiteral("Bolt")
                                                     : QStringLiteral("Bolt");
 
+        // Bolt receiver requires long reports (20 bytes, report ID 0x11).
+        // First, verify this hidraw node accepts writes (only one of the 3 interfaces does).
+        {
+            hidpp::Report testPing;
+            testPing.reportId = hidpp::kLongReportId;
+            testPing.deviceIndex = 0xFF; // receiver itself
+            testPing.featureIndex = 0x00;
+            testPing.functionId = 0x00;
+            testPing.softwareId = 0x0A;
+            testPing.paramLength = 16;
+            auto testBytes = testPing.serialize();
+            int testWrite = device->writeReport(testBytes);
+            if (testWrite < 0) {
+                qDebug() << "[DeviceManager]" << devNode << "does not accept HID++ writes, skipping";
+                return;
+            }
+            // Drain any response from the test ping
+            device->readReport(200);
+        }
+
         // Probe device indices 1-6
         auto transport = std::make_unique<hidpp::Transport>(device.get(), nullptr);
         bool found = false;
         for (int slot = 1; slot <= 6; ++slot) {
-            // Send a Root.getFeature(0x0000) ping as a presence check
             hidpp::Report ping;
-            ping.reportId    = hidpp::kShortReportId;
+            ping.reportId    = hidpp::kLongReportId;
             ping.deviceIndex = static_cast<uint8_t>(slot);
-            ping.featureIndex = 0x00; // Root feature index
-            ping.functionId  = 0x01; // getFeature function
+            ping.featureIndex = 0x00;
+            ping.functionId  = 0x00;
             ping.softwareId  = 0x0A;
             ping.params[0]   = 0x00;
             ping.params[1]   = 0x00;
-            ping.paramLength = 2;
+            ping.paramLength = 16;
 
+            qDebug() << "[DeviceManager] pinging slot" << slot << "on" << devNode;
             auto resp = transport->sendRequest(ping, 500);
             if (resp.has_value() && !resp->isError()) {
                 deviceIndex = static_cast<uint8_t>(slot);
                 found = true;
+                qDebug() << "[DeviceManager] found device at slot" << slot;
                 break;
             }
         }
 
         if (!found) {
+            qDebug() << "[DeviceManager] no device found on any slot of" << devNode;
             return;
         }
     } else if (isDirectDevice(pid)) {
@@ -294,12 +330,14 @@ void DeviceManager::probeDevice(const QString &devNode)
 
 void DeviceManager::enumerateAndSetup()
 {
+    qDebug() << "[DeviceManager] enumerateAndSetup: deviceIndex=" << Qt::hex << m_deviceIndex;
     m_features = std::make_unique<hidpp::FeatureDispatcher>();
 
     bool ok = m_features->enumerate(m_transport.get(), m_deviceIndex);
     if (!ok) {
-        qWarning() << "DeviceManager: feature enumeration failed";
-        // Continue anyway — device is still usable
+        qWarning() << "[DeviceManager] feature enumeration failed";
+    } else {
+        qDebug() << "[DeviceManager] feature enumeration succeeded";
     }
 
     // Read device name
@@ -327,6 +365,8 @@ void DeviceManager::enumerateAndSetup()
         }
     }
 
+    qDebug() << "[DeviceManager] device name:" << name;
+
     if (name.isEmpty())
         name = QStringLiteral("Logitech Device");
 
@@ -349,6 +389,8 @@ void DeviceManager::enumerateAndSetup()
     bool levelChanged   = (m_batteryLevel != battLevel);
     bool chargeChanged  = (m_batteryCharging != battCharging);
     bool typeChanged    = false; // connectionType already set before this call
+
+    qDebug() << "[DeviceManager] battery:" << battLevel << "% charging:" << battCharging;
 
     m_deviceName     = name;
     m_batteryLevel   = battLevel;

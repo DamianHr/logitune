@@ -1,6 +1,7 @@
 #include "Transport.h"
 
 #include <QThread>
+#include <QDebug>
 
 namespace logitune::hidpp {
 
@@ -18,50 +19,59 @@ std::optional<Report> Transport::trySend(const Report &request, int timeoutMs, i
 {
     auto bytes = request.serialize();
     int written = m_device->writeReport(bytes);
-    if (written < 0)
-        return std::nullopt;
-
-    auto responseBytes = m_device->readReport(timeoutMs);
-    if (responseBytes.empty()) {
-        // Timeout — retry once
-        if (retriesLeft > 0)
-            return trySend(request, timeoutMs, retriesLeft - 1);
+    if (written < 0) {
+        qDebug() << "[Transport] write failed";
         return std::nullopt;
     }
 
-    auto response = Report::parse(responseBytes);
-    if (!response)
-        return std::nullopt;
-
-    if (response->isError()) {
-        ErrorCode ec = response->errorCode();
-
-        emit deviceError(ec, response->params[0]);
-
-        switch (ec) {
-        case ErrorCode::Busy:
-            if (retriesLeft > 0) {
-                QThread::msleep(100);
-                return trySend(request, timeoutMs, retriesLeft - 1);
-            }
-            return std::nullopt;
-
-        case ErrorCode::OutOfRange:
-            // Clamp and retry once — caller is responsible for adjusting params;
-            // here we simply retry with the same request once.
+    // Read responses, skipping ones that don't match our request
+    // (Bolt receiver can send notifications from other devices)
+    int readAttempts = 0;
+    while (readAttempts < 5) {
+        auto responseBytes = m_device->readReport(timeoutMs);
+        if (responseBytes.empty()) {
             if (retriesLeft > 0)
-                return trySend(request, timeoutMs, 0);
-            return std::nullopt;
-
-        case ErrorCode::Unsupported:
-            return std::nullopt;
-
-        default:
+                return trySend(request, timeoutMs, retriesLeft - 1);
+            qDebug() << "[Transport] timeout waiting for response";
             return std::nullopt;
         }
+        readAttempts++;
+
+        auto response = Report::parse(responseBytes);
+        if (!response) {
+            qDebug() << "[Transport] failed to parse response";
+            continue;
+        }
+
+        // Check if this response matches our request
+        if (response->deviceIndex == request.deviceIndex &&
+            response->featureIndex == request.featureIndex) {
+            if (response->isError()) {
+                ErrorCode ec = response->errorCode();
+                qDebug() << "[Transport] error response: code=" << static_cast<int>(ec);
+                emit deviceError(ec, response->params[0]);
+                switch (ec) {
+                case ErrorCode::Busy:
+                    if (retriesLeft > 0) {
+                        QThread::msleep(100);
+                        return trySend(request, timeoutMs, retriesLeft - 1);
+                    }
+                    return std::nullopt;
+                case ErrorCode::OutOfRange:
+                    if (retriesLeft > 0)
+                        return trySend(request, timeoutMs, 0);
+                    return std::nullopt;
+                default:
+                    return std::nullopt;
+                }
+            }
+            return response;
+        }
+        // Not our response — notification or different device, skip
     }
 
-    return response;
+    qDebug() << "[Transport] exhausted read attempts";
+    return std::nullopt;
 }
 
 void Transport::run()
