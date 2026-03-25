@@ -67,10 +67,7 @@ Item {
                 }
 
                 Text {
-                    text: {
-                        var n = DeviceModel.deviceName
-                        return (n && n.trim().length > 0) ? n : "MX Master 3S"
-                    }
+                    text: "MX Master 3S"
                     font.pixelSize: 20
                     font.bold: true
                     color: "#1A1A1A"
