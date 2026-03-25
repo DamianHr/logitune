@@ -10,43 +10,68 @@ using namespace logitune::hidpp::features;
 // Battery
 // ---------------------------------------------------------------------------
 
-TEST(Battery, ParseStatusReport) {
+// UnifiedBattery format: [percentage, levelBitmask, BatteryState, reserved]
+TEST(Battery, ParseDischarging) {
     Report r;
-    r.params[0] = 78;
-    r.params[1] = 0x00; // discharging
-    r.paramLength = 2;
+    r.params[0] = 78;   // 78%
+    r.params[1] = 0x08; // level bitmask: full
+    r.params[2] = 0x00; // BatteryState::Discharging
     auto status = Battery::parseStatus(r);
     EXPECT_EQ(status.level, 78);
+    EXPECT_EQ(status.state, BatteryState::Discharging);
     EXPECT_FALSE(status.charging);
 }
 
-TEST(Battery, ParseChargingReport) {
+TEST(Battery, ParseRecharging) {
     Report r;
     r.params[0] = 50;
-    r.params[1] = 0x03; // charging
-    r.paramLength = 2;
+    r.params[1] = 0x04; // level bitmask: good
+    r.params[2] = 0x01; // BatteryState::Recharging
     auto status = Battery::parseStatus(r);
     EXPECT_EQ(status.level, 50);
+    EXPECT_EQ(status.state, BatteryState::Recharging);
     EXPECT_TRUE(status.charging);
 }
 
-TEST(Battery, FullBattery) {
+TEST(Battery, ParseFull) {
     Report r;
     r.params[0] = 100;
-    r.params[1] = 0x00;
-    r.paramLength = 2;
+    r.params[1] = 0x08;
+    r.params[2] = 0x03; // BatteryState::Full
     auto status = Battery::parseStatus(r);
     EXPECT_EQ(status.level, 100);
+    EXPECT_EQ(status.state, BatteryState::Full);
+    EXPECT_TRUE(status.charging); // Full still means plugged in
+}
+
+TEST(Battery, ParseSlowRecharge) {
+    Report r;
+    r.params[0] = 95;
+    r.params[1] = 0x08;
+    r.params[2] = 0x04; // BatteryState::SlowRecharge
+    auto status = Battery::parseStatus(r);
+    EXPECT_EQ(status.level, 95);
+    EXPECT_EQ(status.state, BatteryState::SlowRecharge);
+    EXPECT_TRUE(status.charging);
+}
+
+TEST(Battery, ParseZeroPercentUsesLevelBitmask) {
+    Report r;
+    r.params[0] = 0;    // percentage 0 = use bitmask
+    r.params[1] = 0x02; // level bitmask: low
+    r.params[2] = 0x00; // discharging
+    auto status = Battery::parseStatus(r);
+    EXPECT_EQ(status.level, 20); // low = 20%
     EXPECT_FALSE(status.charging);
 }
 
-TEST(Battery, ZeroBatteryCharging) {
+TEST(Battery, ParseZeroPercentCritical) {
     Report r;
     r.params[0] = 0;
-    r.params[1] = 0x03;
-    r.paramLength = 2;
+    r.params[1] = 0x01; // critical
+    r.params[2] = 0x01; // recharging
     auto status = Battery::parseStatus(r);
-    EXPECT_EQ(status.level, 0);
+    EXPECT_EQ(status.level, 5); // critical = 5%
     EXPECT_TRUE(status.charging);
 }
 
