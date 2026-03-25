@@ -7,6 +7,14 @@
 #include <QSocketNotifier>
 
 #include <libudev.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <cerrno>
+#include <cstring>
+#include <linux/hidraw.h>
+#include <sys/ioctl.h>
+#include <sys/wait.h>
+#include <signal.h>
 
 namespace logitune {
 
@@ -243,24 +251,37 @@ void DeviceManager::probeDevice(const QString &devNode)
         connType = (pid == hidpp::kPidBoltReceiver) ? QStringLiteral("Bolt")
                                                     : QStringLiteral("Bolt");
 
-        // Bolt receiver requires long reports (20 bytes, report ID 0x11).
-        // First, verify this hidraw node accepts writes (only one of the 3 interfaces does).
+        // Bolt receiver exposes 3 hidraw interfaces. Only one accepts HID++ writes.
+        // Writing to the wrong one returns EPIPE and poisons further writes in this process.
+        // We identify the correct interface by checking the HID report descriptor:
+        // the HID++ interface reports 0x11 (long report ID) in its descriptor.
         {
-            hidpp::Report testPing;
-            testPing.reportId = hidpp::kLongReportId;
-            testPing.deviceIndex = 0xFF; // receiver itself
-            testPing.featureIndex = 0x00;
-            testPing.functionId = 0x00;
-            testPing.softwareId = 0x0A;
-            testPing.paramLength = 16;
-            auto testBytes = testPing.serialize();
-            int testWrite = device->writeReport(testBytes);
-            if (testWrite < 0) {
-                qDebug() << "[DeviceManager]" << devNode << "does not accept HID++ writes, skipping";
+            struct hidraw_report_descriptor rptDesc{};
+            unsigned int descSize = 0;
+            if (ioctl(device->fd(), HIDIOCGRDESCSIZE, &descSize) < 0) {
+                qDebug() << "[DeviceManager]" << devNode << "cannot get report descriptor size";
                 return;
             }
-            // Drain any response from the test ping
-            device->readReport(200);
+            rptDesc.size = descSize;
+            if (ioctl(device->fd(), HIDIOCGRDESC, &rptDesc) < 0) {
+                qDebug() << "[DeviceManager]" << devNode << "cannot get report descriptor";
+                return;
+            }
+
+            // Look for report ID 0x11 (HID++ long report) in the descriptor
+            bool hasHidppReport = false;
+            for (unsigned int i = 0; i + 1 < descSize; ++i) {
+                // Report ID item: 0x85 followed by the ID byte
+                if (rptDesc.value[i] == 0x85 && rptDesc.value[i + 1] == 0x11) {
+                    hasHidppReport = true;
+                    break;
+                }
+            }
+            qDebug() << "[DeviceManager]" << devNode << "descriptor:" << descSize << "bytes, has 0x11 report:" << hasHidppReport;
+            if (!hasHidppReport) {
+                qDebug() << "[DeviceManager]" << devNode << "not the HID++ interface, skipping";
+                return;
+            }
         }
 
         // Probe device indices 1-6

@@ -1,5 +1,6 @@
 #include <QApplication>
 #include <QDirIterator>
+#include <signal.h>
 #include <QQmlApplicationEngine>
 #include <QSystemTrayIcon>
 #include <QMenu>
@@ -18,6 +19,10 @@
 
 int main(int argc, char *argv[])
 {
+    // Ignore SIGPIPE — hidraw writes to wrong interface cause EPIPE,
+    // and without this the process terminates on the first failed write.
+    signal(SIGPIPE, SIG_IGN);
+
     qInstallMessageHandler([](QtMsgType type, const QMessageLogContext &ctx, const QString &msg) {
         fprintf(stderr, "[Qt %d] %s:%d: %s\n", type, ctx.file ? ctx.file : "?", ctx.line, qPrintable(msg));
     });
