@@ -8,6 +8,7 @@ add_executable(logitune-tests
     test_scroll_features.cpp
     test_features.cpp
     test_button_features.cpp
+    test_device_discovery.cpp
 )
 target_link_libraries(logitune-tests PRIVATE logitune-core GTest::gtest_main)
 gtest_discover_tests(logitune-tests)
