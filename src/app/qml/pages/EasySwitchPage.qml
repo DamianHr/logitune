@@ -4,16 +4,25 @@ import QtQuick.Controls
 Item {
     id: root
 
-    // Background
     Rectangle {
         anchors.fill: parent
         color: "#FFFFFF"
-        radius: 0
     }
 
     Column {
         anchors.centerIn: parent
         spacing: 24
+
+        // Back view of the mouse showing Easy-Switch buttons
+        Image {
+            width: 280
+            height: 109  // 1872x728 aspect ratio scaled
+            anchors.horizontalCenter: parent.horizontalCenter
+            source: "qrc:/Logitune/qml/assets/mx-master-3s-back.png"
+            fillMode: Image.PreserveAspectFit
+            smooth: true
+            mipmap: true
+        }
 
         Text {
             text: "Easy-Switch"
@@ -32,11 +41,10 @@ Item {
             spacing: 16
             anchors.horizontalCenter: parent.horizontalCenter
 
-            // 3 channel cards
             Repeater {
                 model: 3
                 delegate: Rectangle {
-                    width: 160; height: 120
+                    width: 160; height: 100
                     radius: 12
                     color: index === 0 ? Qt.rgba(0.506, 0.306, 0.980, 0.06) : "#FFFFFF"
                     border.color: index === 0 ? "#814EFA" : "#F0F0F0"
@@ -44,11 +52,11 @@ Item {
 
                     Column {
                         anchors.centerIn: parent
-                        spacing: 8
+                        spacing: 6
 
                         Text {
                             text: (index + 1).toString()
-                            font { pixelSize: 24; bold: true }
+                            font { pixelSize: 22; bold: true }
                             color: index === 0 ? "#814EFA" : "#999999"
                             anchors.horizontalCenter: parent.horizontalCenter
                         }
@@ -59,7 +67,7 @@ Item {
                             anchors.horizontalCenter: parent.horizontalCenter
                         }
                         Text {
-                            text: index === 0 ? "Bluetooth" : "\u2014"
+                            text: index === 0 ? "Bolt" : "\u2014"
                             font.pixelSize: 10
                             color: "#AAAAAA"
                             anchors.horizontalCenter: parent.horizontalCenter

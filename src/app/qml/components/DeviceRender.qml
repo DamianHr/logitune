@@ -25,21 +25,23 @@ Item {
     // Positions tuned for the 220x326 MX Master 3S render at 3/4 angle.
     // Each zone has a 16x16 hotspot circle (2px border, full radius).
 
+    // Hotspot positions derived from Options+ core_metadata.json
+    // Metadata marker coords are percentage of 636x1024, scaled to our 220x326 render
     readonly property var hotspotPositions: [
-        // 0: Left click centre
-        { zoneX: 20, zoneY: 10, zoneW: 90, zoneH: 130, dotX: 55,  dotY: 70  },
-        // 1: Right click centre
-        { zoneX: 115, zoneY: 10, zoneW: 90, zoneH: 130, dotX: 160, dotY: 70  },
-        // 2: Middle / scroll wheel
-        { zoneX: 85, zoneY: 40, zoneW: 40, zoneH: 70,  dotX: 105, dotY: 75  },
-        // 3: Back (thumb rear)
-        { zoneX: 0, zoneY: 195, zoneW: 45, zoneH: 40,  dotX: 15,  dotY: 215 },
-        // 4: Forward (thumb front)
-        { zoneX: 0, zoneY: 150, zoneW: 45, zoneH: 40,  dotX: 15,  dotY: 170 },
-        // 5: Thumb / gesture
-        { zoneX: 0, zoneY: 170, zoneW: 40, zoneH: 30,  dotX: 12,  dotY: 185 },
-        // 6: Top button (behind scroll)
-        { zoneX: 150, zoneY: 30, zoneW: 40, zoneH: 25,  dotX: 170, dotY: 42  }
+        // 0: Left click — no metadata marker, approximated (top-left half)
+        { zoneX: 20, zoneY: 10, zoneW: 85, zoneH: 120, dotX: 60,  dotY: 60  },
+        // 1: Right click — no metadata marker, approximated (top-right half)
+        { zoneX: 110, zoneY: 10, zoneW: 85, zoneH: 120, dotX: 155, dotY: 60  },
+        // 2: Middle / scroll wheel — metadata: (71%, 15%)
+        { zoneX: 130, zoneY: 25, zoneW: 50, zoneH: 50,  dotX: 156, dotY: 49  },
+        // 3: Back — metadata: (45%, 60%)
+        { zoneX: 70, zoneY: 175, zoneW: 60, zoneH: 45,  dotX: 99,  dotY: 196 },
+        // 4: Forward — metadata: (35%, 43%)
+        { zoneX: 50, zoneY: 118, zoneW: 55, zoneH: 45,  dotX: 77,  dotY: 140 },
+        // 5: Gesture button — metadata: (8%, 58%)
+        { zoneX: 0, zoneY: 165, zoneW: 40, zoneH: 50,   dotX: 18,  dotY: 189 },
+        // 6: Top/ModeShift button — metadata: (81%, 34%)
+        { zoneX: 155, zoneY: 88, zoneW: 45, zoneH: 45,  dotX: 178, dotY: 111 }
     ]
 
     Repeater {
