@@ -62,8 +62,8 @@ Item {
             ctx.beginPath()
             ctx.moveTo(cardEdgeX, cardEdgeY)
             ctx.lineTo(hx, hy)
-            ctx.strokeStyle = root.selected ? "#814EFA" : "#CCCCCC"
-            ctx.lineWidth = 1.5
+            ctx.strokeStyle = root.selected ? "#814EFA" : "#BBBBBB"
+            ctx.lineWidth = 2
             ctx.setLineDash([])
             ctx.stroke()
         }
@@ -88,6 +88,15 @@ Item {
 
         Behavior on color        { ColorAnimation { duration: 150 } }
         Behavior on border.color { ColorAnimation { duration: 150 } }
+
+        // Drop shadow
+        Rectangle {
+            x: 4; y: 4
+            width: parent.width; height: parent.height
+            radius: parent.radius
+            color: Qt.rgba(0, 0, 0, 0.1)
+            z: -1
+        }
 
         Column {
             id: contentCol

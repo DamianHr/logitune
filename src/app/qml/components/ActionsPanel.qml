@@ -123,6 +123,19 @@ Rectangle {
 
                 Behavior on border.color { ColorAnimation { duration: 200 } }
 
+                Text {
+                    anchors {
+                        fill: parent
+                        leftMargin: 12
+                        rightMargin: 12
+                    }
+                    verticalAlignment: Text.AlignVCenter
+                    text: "Search actions..."
+                    font.pixelSize: 14
+                    color: "#AAAAAA"
+                    visible: !searchInput.text && !searchInput.activeFocus
+                }
+
                 TextInput {
                     id: searchInput
                     anchors {
@@ -134,15 +147,6 @@ Rectangle {
                     font.pixelSize: 14
                     color: "#222425"
                     clip: true
-
-                    Text {
-                        anchors.fill: parent
-                        verticalAlignment: Text.AlignVCenter
-                        text: "Search actions..."
-                        font.pixelSize: 14
-                        color: "#AAAAAA"
-                        visible: !searchInput.text && !searchInput.activeFocus
-                    }
                 }
             }
         }
@@ -153,7 +157,7 @@ Rectangle {
             Layout.leftMargin:  33
             Layout.rightMargin: 16
             Layout.topMargin:   12
-            implicitHeight: smartHeader.implicitHeight + (smartExpanded ? smartBody.implicitHeight + 8 : 0)
+            implicitHeight: 50 + (smartExpanded ? smartBody.implicitHeight + 8 : 0)
             clip: true
 
             property bool smartExpanded: false

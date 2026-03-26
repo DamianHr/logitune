@@ -1,6 +1,8 @@
 #include "DeviceManager.h"
 #include "hidpp/features/Battery.h"
 #include "hidpp/features/DeviceName.h"
+#include "hidpp/features/AdjustableDPI.h"
+#include "hidpp/features/SmartShift.h"
 
 #include <QDateTime>
 #include <QDebug>
@@ -396,6 +398,41 @@ void DeviceManager::enumerateAndSetup()
             auto status = hidpp::features::Battery::parseStatus(*resp);
             battLevel    = status.level;
             battCharging = status.charging;
+        }
+    }
+
+    // Read DPI range and current value
+    if (m_features->hasFeature(hidpp::FeatureId::AdjustableDPI)) {
+        // Get DPI range
+        auto rangeResp = m_features->call(m_transport.get(), m_deviceIndex,
+                                          hidpp::FeatureId::AdjustableDPI,
+                                          hidpp::features::AdjustableDPI::kFnGetSensorDpiList,
+                                          std::array<uint8_t, 1>{0x00}); // sensor 0
+        if (rangeResp.has_value()) {
+            auto info = hidpp::features::AdjustableDPI::parseSensorDpiList(*rangeResp);
+            qDebug() << "[DeviceManager] DPI range:" << info.minDPI << "-" << info.maxDPI
+                     << "step:" << info.stepDPI;
+        }
+        // Get current DPI
+        auto dpiResp = m_features->call(m_transport.get(), m_deviceIndex,
+                                        hidpp::FeatureId::AdjustableDPI,
+                                        hidpp::features::AdjustableDPI::kFnGetSensorDpi,
+                                        std::array<uint8_t, 1>{0x00}); // sensor 0
+        if (dpiResp.has_value()) {
+            int currentDPI = hidpp::features::AdjustableDPI::parseCurrentDPI(*dpiResp);
+            qDebug() << "[DeviceManager] current DPI:" << currentDPI;
+        }
+    }
+
+    // Read SmartShift
+    if (m_features->hasFeature(hidpp::FeatureId::SmartShift)) {
+        auto resp = m_features->call(m_transport.get(), m_deviceIndex,
+                                     hidpp::FeatureId::SmartShift,
+                                     hidpp::features::SmartShift::kFnGetConfig);
+        if (resp.has_value()) {
+            auto cfg = hidpp::features::SmartShift::parseConfig(*resp);
+            qDebug() << "[DeviceManager] SmartShift:" << (cfg.enabled ? "ON" : "OFF")
+                     << "threshold:" << cfg.threshold;
         }
     }
 

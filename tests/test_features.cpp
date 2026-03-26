@@ -79,19 +79,26 @@ TEST(Battery, ParseZeroPercentCritical) {
 // AdjustableDPI
 // ---------------------------------------------------------------------------
 
-TEST(AdjustableDPI, ParseSensorInfo) {
+TEST(AdjustableDPI, ParseSensorDpiList) {
+    // Function 1 response: [sensorIdx, minDPI_hi, minDPI_lo, ?, step, maxDPI_hi, maxDPI_lo]
     Report r;
-    r.params[0] = 0x03; r.params[1] = 0xE8; // currentDPI = 1000
-    r.params[2] = 0x01;                      // sensor count
-    r.params[3] = 0x00; r.params[4] = 0xC8; // minDPI = 200
-    r.params[5] = 0x0F; r.params[6] = 0xA0; // maxDPI = 4000
-    r.params[7] = 0x00; r.params[8] = 0x32; // stepDPI = 50
-    r.paramLength = 9;
-    auto info = AdjustableDPI::parseSensorInfo(r);
-    EXPECT_EQ(info.currentDPI, 1000);
+    r.params[0] = 0x00;                      // sensor index
+    r.params[1] = 0x00; r.params[2] = 0xC8; // minDPI = 200
+    r.params[3] = 0xE0;                      // unknown
+    r.params[4] = 0x32;                      // step = 50
+    r.params[5] = 0x1F; r.params[6] = 0x40; // maxDPI = 8000
+    auto info = AdjustableDPI::parseSensorDpiList(r);
     EXPECT_EQ(info.minDPI, 200);
-    EXPECT_EQ(info.maxDPI, 4000);
+    EXPECT_EQ(info.maxDPI, 8000);
     EXPECT_EQ(info.stepDPI, 50);
+}
+
+TEST(AdjustableDPI, ParseCurrentDPI) {
+    // Function 2 response: [sensorIdx, dpi_hi, dpi_lo, ...]
+    Report r;
+    r.params[0] = 0x00;
+    r.params[1] = 0x03; r.params[2] = 0xE8; // 1000
+    EXPECT_EQ(AdjustableDPI::parseCurrentDPI(r), 1000);
 }
 
 TEST(AdjustableDPI, BuildSetDPIRequest) {
@@ -108,13 +115,6 @@ TEST(AdjustableDPI, BuildSetDPIHighSensor) {
     EXPECT_EQ(params[0], 0x01);
     EXPECT_EQ(params[1], 0x03);
     EXPECT_EQ(params[2], 0x20);
-}
-
-TEST(AdjustableDPI, ParseCurrentDPI) {
-    Report r;
-    r.params[0] = 0x07; r.params[1] = 0xD0; // 2000
-    r.paramLength = 2;
-    EXPECT_EQ(AdjustableDPI::parseCurrentDPI(r), 2000);
 }
 
 TEST(AdjustableDPI, BuildSetDPIRoundTrip) {
