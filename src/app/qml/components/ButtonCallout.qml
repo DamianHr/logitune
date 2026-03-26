@@ -70,24 +70,12 @@ Item {
         Behavior on color        { ColorAnimation { duration: 150 } }
         Behavior on border.color { ColorAnimation { duration: 150 } }
 
-        // Drop shadow — drop-shadow(6px 6px 10px) equivalent
-        layer.enabled: true
-        layer.effect: Item {
-            Rectangle {
-                anchors.fill: parent
-                anchors.margins: -2
-                radius: card.radius + 2
-                color: Qt.rgba(0, 0, 0, 0.12)
-                z: -1
-            }
-        }
-
-        // Subtle offset shadow simulation
+        // Drop shadow simulation
         Rectangle {
             x: 3; y: 3
             width: parent.width; height: parent.height
-            radius:  card.radius
-            color:   Qt.rgba(0, 0, 0, 0.06)
+            radius: card.radius
+            color: Qt.rgba(0, 0, 0, 0.08)
             z: -1
         }
 
