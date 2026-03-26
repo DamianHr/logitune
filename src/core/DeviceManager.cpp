@@ -7,6 +7,7 @@
 #include <QDateTime>
 #include <QDebug>
 #include <QFile>
+#include <QtConcurrent>
 #include <QSocketNotifier>
 
 #include <libudev.h>
@@ -636,18 +637,27 @@ void DeviceManager::setDPI(int value)
     value = qBound(m_minDPI, value, m_maxDPI);
     value = (value / m_dpiStep) * m_dpiStep;
 
-    auto params = hidpp::features::AdjustableDPI::buildSetDPI(value);
-    auto resp = m_features->call(m_transport.get(), m_deviceIndex,
-                                 hidpp::FeatureId::AdjustableDPI,
-                                 hidpp::features::AdjustableDPI::kFnSetSensorDpi,
-                                 params);
-    if (resp.has_value()) {
-        m_currentDPI = value;
-        qDebug() << "[DeviceManager] DPI set to" << value;
-        emit currentDPIChanged();
-    } else {
-        qWarning() << "[DeviceManager] failed to set DPI to" << value;
-    }
+    // Optimistically update UI immediately
+    m_currentDPI = value;
+    emit currentDPIChanged();
+
+    // Send HID++ command asynchronously on a worker thread
+    auto *transport = m_transport.get();
+    auto *features = m_features.get();
+    uint8_t devIdx = m_deviceIndex;
+
+    QtConcurrent::run([transport, features, devIdx, value]() {
+        auto params = hidpp::features::AdjustableDPI::buildSetDPI(value);
+        auto resp = features->call(transport, devIdx,
+                                   hidpp::FeatureId::AdjustableDPI,
+                                   hidpp::features::AdjustableDPI::kFnSetSensorDpi,
+                                   params);
+        if (resp.has_value()) {
+            qDebug() << "[DeviceManager] DPI set to" << value;
+        } else {
+            qWarning() << "[DeviceManager] failed to set DPI to" << value;
+        }
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -663,19 +673,26 @@ void DeviceManager::setSmartShift(bool enabled, int threshold)
 
     threshold = qBound(1, threshold, 255);
 
-    auto params = hidpp::features::SmartShift::buildSetConfig(enabled, threshold);
-    auto resp = m_features->call(m_transport.get(), m_deviceIndex,
-                                 hidpp::FeatureId::SmartShift,
-                                 hidpp::features::SmartShift::kFnSetConfig,
-                                 std::span<const uint8_t>(params));
-    if (resp.has_value()) {
-        m_smartShiftEnabled = enabled;
-        m_smartShiftThreshold = threshold;
-        qDebug() << "[DeviceManager] SmartShift set:" << enabled << "threshold:" << threshold;
-        emit smartShiftChanged();
-    } else {
-        qWarning() << "[DeviceManager] failed to set SmartShift";
-    }
+    m_smartShiftEnabled = enabled;
+    m_smartShiftThreshold = threshold;
+    emit smartShiftChanged();
+
+    auto *transport = m_transport.get();
+    auto *features = m_features.get();
+    uint8_t devIdx = m_deviceIndex;
+
+    QtConcurrent::run([transport, features, devIdx, enabled, threshold]() {
+        auto params = hidpp::features::SmartShift::buildSetConfig(enabled, threshold);
+        auto resp = features->call(transport, devIdx,
+                                   hidpp::FeatureId::SmartShift,
+                                   hidpp::features::SmartShift::kFnSetConfig,
+                                   std::span<const uint8_t>(params));
+        if (resp.has_value()) {
+            qDebug() << "[DeviceManager] SmartShift set:" << enabled << "threshold:" << threshold;
+        } else {
+            qWarning() << "[DeviceManager] failed to set SmartShift";
+        }
+    });
 }
 
 } // namespace logitune
