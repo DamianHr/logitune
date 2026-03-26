@@ -28,6 +28,7 @@ ActionModel::ActionModel(QObject *parent)
         { "Play/Pause",           "Play or pause media",                        "keystroke",       "Play"        },
         { "Redo",                 "Redo last undone action",                    "keystroke",       "Ctrl+Shift+Z"},
         { "Screenshot",           "Capture a screenshot",                       "keystroke",       "Print"       },
+        { "Shift wheel mode",     "Toggle scroll wheel ratchet/freespin",       "smartshift-toggle", ""          },
         { "Show desktop",         "Minimize all windows to show desktop",       "keystroke",       "Super+D"     },
         { "Undo",                 "Undo the last action",                       "keystroke",       "Ctrl+Z"      },
         { "Volume down",          "Decrease system volume",                     "keystroke",       "VolumeDown"  },

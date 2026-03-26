@@ -111,7 +111,7 @@ int main(int argc, char *argv[])
 
     // 5. Diverted button press → profile action lookup → execute
     QObject::connect(&deviceManager, &logitune::DeviceManager::divertedButtonPressed,
-        [&buttonModel, &actionModel, &actionExecutor](uint16_t controlId, bool pressed) {
+        [&buttonModel, &actionModel, &actionExecutor, &deviceManager](uint16_t controlId, bool pressed) {
             if (!pressed) return;
 
             // Map controlId to button index (from real device enumeration)
@@ -137,8 +137,14 @@ int main(int argc, char *argv[])
 
             if (actionType == "keystroke" && !payload.isEmpty()) {
                 actionExecutor.injectKeystroke(payload);
+            } else if (actionType == "smartshift-toggle") {
+                // Toggle SmartShift ratchet/freespin
+                bool current = deviceManager.smartShiftEnabled();
+                deviceManager.setSmartShift(!current, deviceManager.smartShiftThreshold());
+                qDebug() << "[main] SmartShift toggled to" << !current;
             } else if (actionType == "gesture-trigger") {
-                // gesture mode — handled separately
+                // Gesture mode: the actual gesture detection happens via GestureV2 events
+                // (wired separately below). The button press just enters gesture mode.
             } else if (actionType == "app-launch" && !payload.isEmpty()) {
                 actionExecutor.launchApp(payload);
             }
@@ -167,9 +173,16 @@ int main(int argc, char *argv[])
             }
         });
 
-    // 7. Gesture event → GestureDetector → profile gesture action → execute
+    // 7. Gesture event → GestureDetector → resolve direction → execute
+    // Default gesture map: "Window navigation" preset (matches Options+)
+    static QMap<QString, QString> gestureKeystrokes = {
+        {"up",    "Super+D"},         // Show desktop
+        {"down",  "Super+A"},         // Activities/App expose (KDE: Super+A)
+        {"left",  "Ctrl+Alt+Left"},   // Previous virtual desktop
+        {"right", "Ctrl+Alt+Right"},  // Next virtual desktop
+    };
     QObject::connect(&deviceManager, &logitune::DeviceManager::gestureEvent,
-        [&actionExecutor, &profileEngine](int dx, int dy, bool released) {
+        [&actionExecutor](int dx, int dy, bool released) {
             actionExecutor.gestureDetector().addDelta(dx, dy);
             if (released) {
                 auto dir = actionExecutor.gestureDetector().resolve();
@@ -185,10 +198,11 @@ int main(int argc, char *argv[])
                     default: return;
                 }
 
-                const auto &profile = profileEngine.activeProfile();
-                auto it = profile.gestures.find(dirName);
-                if (it != profile.gestures.end())
-                    actionExecutor.executeAction(it->second);
+                auto it = gestureKeystrokes.find(dirName);
+                if (it != gestureKeystrokes.end() && !it.value().isEmpty()) {
+                    qDebug() << "[main] gesture:" << dirName << "→" << it.value();
+                    actionExecutor.injectKeystroke(it.value());
+                }
             }
         });
 
