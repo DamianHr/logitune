@@ -60,8 +60,10 @@ public:
     // Instance methods
     void setDeviceConfigDir(const QString &dir);
     Profile activeProfile() const;
+    QString activeProfileName() const;
     QStringList profileNames() const;
     void switchToProfile(const QString &name);
+    void updateActiveProfile(const Profile &p);  // saves in-place to disk, no signals
     void switchForApp(const QString &wmClass);  // debounced
 
 signals:
@@ -71,6 +73,7 @@ signals:
 private:
     QString m_configDir;
     Profile m_activeProfile;
+    QString m_activeProfileName;
     QMap<QString, QString> m_appBindings;
     QTimer m_debounceTimer;  // 200ms for app switching
     QString m_pendingAppClass;

@@ -67,6 +67,11 @@ public:
     bool scrollRatchet() const;
     QString thumbWheelMode() const;
 
+    // Device identity (available after connect)
+    QString deviceSerial() const;
+    uint16_t deviceVid() const;
+    uint16_t devicePid() const;
+
     // Access to internals for other components
     hidpp::FeatureDispatcher *features() const;
     hidpp::Transport *transport() const;
@@ -74,6 +79,7 @@ public:
 
 signals:
     void deviceConnectedChanged();
+    void deviceSetupComplete();  // emitted after enumerateAndSetup() finishes successfully
     void deviceNameChanged();
     void batteryLevelChanged();
     void batteryChargingChanged();
@@ -124,6 +130,9 @@ private:
     // Cached state
     bool m_connected = false;
     QString m_deviceName;
+    QString m_deviceSerial;
+    uint16_t m_deviceVid = 0;
+    uint16_t m_devicePid = 0;
     int m_batteryLevel = 0;
     bool m_batteryCharging = false;
     QString m_connectionType;

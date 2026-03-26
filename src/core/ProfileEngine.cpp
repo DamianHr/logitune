@@ -194,6 +194,19 @@ Profile ProfileEngine::activeProfile() const
     return m_activeProfile;
 }
 
+QString ProfileEngine::activeProfileName() const
+{
+    return m_activeProfileName;
+}
+
+void ProfileEngine::updateActiveProfile(const Profile &p)
+{
+    if (m_configDir.isEmpty() || m_activeProfileName.isEmpty())
+        return;
+    m_activeProfile = p;
+    saveProfile(profilePath(m_activeProfileName), p);
+}
+
 QStringList ProfileEngine::profileNames() const
 {
     if (m_configDir.isEmpty())
@@ -212,6 +225,7 @@ QStringList ProfileEngine::profileNames() const
 void ProfileEngine::switchToProfile(const QString &name)
 {
     const Profile prev = m_activeProfile;
+    m_activeProfileName = name;
     m_activeProfile = loadProfile(profilePath(name));
     const ProfileDelta delta = diff(prev, m_activeProfile);
     emit activeProfileChanged(m_activeProfile);

@@ -9,6 +9,7 @@
 #include <QDateTime>
 #include <QDebug>
 #include <QFile>
+#include <QHash>
 #include <QtConcurrent>
 #include <QSocketNotifier>
 
@@ -448,6 +449,22 @@ void DeviceManager::enumerateAndSetup()
     if (name.isEmpty())
         name = QStringLiteral("Logitech Device");
 
+    // Read serial via DeviceName feature function 2 (getDeviceType response contains serial)
+    QString serial;
+    if (m_features->hasFeature(hidpp::FeatureId::DeviceName)) {
+        auto resp = m_features->call(m_transport.get(), m_deviceIndex,
+                                     hidpp::FeatureId::DeviceName,
+                                     hidpp::features::DeviceName::kFnGetDeviceType);
+        if (resp.has_value())
+            serial = hidpp::features::DeviceName::parseSerial(*resp).trimmed();
+    }
+    // Fall back to a stable identifier derived from product ID + name hash
+    if (serial.isEmpty()) {
+        serial = QString::number(m_device->info().productId, 16)
+                 + QStringLiteral("-") + QString::number(qHash(name), 16);
+    }
+    qDebug() << "[DeviceManager] device serial:" << serial;
+
     // Read battery
     int battLevel = 0;
     bool battCharging = false;
@@ -556,6 +573,9 @@ void DeviceManager::enumerateAndSetup()
     qDebug() << "[DeviceManager] battery:" << battLevel << "% charging:" << battCharging;
 
     m_deviceName     = name;
+    m_deviceSerial   = serial;
+    m_deviceVid      = m_device->info().vendorId;
+    m_devicePid      = m_device->info().productId;
     m_batteryLevel   = battLevel;
     m_batteryCharging = battCharging;
 
@@ -569,6 +589,8 @@ void DeviceManager::enumerateAndSetup()
 
     // Record response time for sleep/wake tracking
     m_lastResponseTime = QDateTime::currentMSecsSinceEpoch();
+
+    emit deviceSetupComplete();
 }
 
 // ---------------------------------------------------------------------------
@@ -587,6 +609,9 @@ void DeviceManager::disconnectDevice()
     bool wasConnected = m_connected;
     m_connected      = false;
     m_deviceName     = QString();
+    m_deviceSerial   = QString();
+    m_deviceVid      = 0;
+    m_devicePid      = 0;
     m_batteryLevel   = 0;
     m_batteryCharging = false;
     m_connectionType  = QString();
@@ -748,6 +773,9 @@ bool DeviceManager::scrollRatchet() const { return m_scrollRatchet; }
 hidpp::FeatureDispatcher *DeviceManager::features() const { return m_features.get(); }
 hidpp::Transport *DeviceManager::transport() const { return m_transport.get(); }
 uint8_t DeviceManager::deviceIndex() const { return m_deviceIndex; }
+QString DeviceManager::deviceSerial() const { return m_deviceSerial; }
+uint16_t DeviceManager::deviceVid() const { return m_deviceVid; }
+uint16_t DeviceManager::devicePid() const { return m_devicePid; }
 
 // ---------------------------------------------------------------------------
 // setDPI() — change mouse DPI via HID++

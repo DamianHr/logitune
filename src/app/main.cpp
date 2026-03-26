@@ -1,5 +1,7 @@
 #include <QApplication>
+#include <QDir>
 #include <QDirIterator>
+#include <QFile>
 #include <signal.h>
 #include <QQmlApplicationEngine>
 #include <QSystemTrayIcon>
@@ -45,11 +47,7 @@ int main(int argc, char *argv[])
     logitune::ProfileModel profileModel;
     logitune::KWinWindowTracker windowTracker;
 
-    // ProfileEngine — config dir is per-device but we set a default here;
-    // once the device serial is known it can be updated via setDeviceConfigDir.
     logitune::ProfileEngine profileEngine;
-    const QString configBase = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
-    profileEngine.setDeviceConfigDir(configBase + "/default");
 
     // ActionExecutor — create uinput virtual keyboard device
     fprintf(stderr, "[logitune] creating ActionExecutor...\n");
@@ -58,6 +56,68 @@ int main(int argc, char *argv[])
     if (!actionExecutor.initUinput()) {
         qWarning() << "[main] ActionExecutor: uinput init failed (no /dev/uinput access?). Keystrokes will not be injected.";
     }
+
+    // ── Profile persistence helpers ──────────────────────────────────────────
+
+    // Look up the ActionModel display name for a ButtonAction (reverse payload lookup)
+    auto buttonActionToName = [&actionModel](const logitune::ButtonAction &ba) -> QString {
+        if (ba.type == logitune::ButtonAction::Default)
+            return QString();  // caller uses buttonName default
+        if (ba.type == logitune::ButtonAction::GestureTrigger)
+            return QStringLiteral("Gestures");
+        if (ba.type == logitune::ButtonAction::Keystroke) {
+            // Reverse-map payload → display name via ActionModel
+            int count = actionModel.rowCount();
+            for (int i = 0; i < count; ++i) {
+                QModelIndex mi = actionModel.index(i);
+                if (actionModel.data(mi, logitune::ActionModel::ActionTypeRole).toString() == QStringLiteral("keystroke") &&
+                    actionModel.data(mi, logitune::ActionModel::PayloadRole).toString() == ba.payload) {
+                    return actionModel.data(mi, logitune::ActionModel::NameRole).toString();
+                }
+            }
+            return ba.payload; // fallback: use payload directly
+        }
+        return ba.payload;
+    };
+
+    // Build a ButtonAction from ButtonModel entry (for saving)
+    auto buttonEntryToAction = [&actionModel](const QString &actionType, const QString &actionName)
+            -> logitune::ButtonAction {
+        if (actionType == QStringLiteral("default"))
+            return {logitune::ButtonAction::Default, {}};
+        if (actionType == QStringLiteral("gesture-trigger"))
+            return {logitune::ButtonAction::GestureTrigger, {}};
+        if (actionType == QStringLiteral("keystroke")) {
+            QString payload = actionModel.payloadForName(actionName);
+            if (payload.isEmpty()) payload = actionName; // actionName might already be a keystroke
+            return {logitune::ButtonAction::Keystroke, payload};
+        }
+        if (actionType == QStringLiteral("app-launch"))
+            return {logitune::ButtonAction::AppLaunch, actionModel.payloadForName(actionName)};
+        return {logitune::ButtonAction::Default, {}};
+    };
+
+    // Capture current device + button state into a Profile and save it via ProfileEngine
+    auto saveCurrentState = [&]() {
+        if (!deviceManager.deviceConnected()) return;
+        if (profileEngine.activeProfileName().isEmpty()) return;  // no profile loaded yet
+        logitune::Profile p = profileEngine.activeProfile();
+        if (p.name.isEmpty()) p.name = QStringLiteral("Default");
+        p.dpi                 = deviceManager.currentDPI();
+        p.smartShiftEnabled   = deviceManager.smartShiftEnabled();
+        p.smartShiftThreshold = deviceManager.smartShiftThreshold();
+        p.hiResScroll         = deviceManager.scrollHiRes();
+        p.scrollDirection     = deviceManager.scrollInvert() ? QStringLiteral("natural")
+                                                              : QStringLiteral("standard");
+        p.smoothScrolling     = !deviceManager.scrollRatchet();
+        for (int i = 0; i < 7; ++i) {
+            QString aType = buttonModel.actionTypeForButton(i);
+            QString aName = buttonModel.actionNameForButton(i);
+            p.buttons[static_cast<std::size_t>(i)] = buttonEntryToAction(aType, aName);
+        }
+        profileEngine.updateActiveProfile(p);
+        qDebug() << "[main] profile saved:" << profileEngine.activeProfileName();
+    };
 
     // ── Signal wiring ────────────────────────────────────────────────────────
 
@@ -98,15 +158,116 @@ int main(int argc, char *argv[])
     QObject::connect(&profileEngine, &logitune::ProfileEngine::profileDelta,
         [&deviceManager](const logitune::ProfileDelta &delta, const logitune::Profile &profile) {
             if (delta.dpiChanged)
-                qDebug() << "[main] profileDelta: would set DPI to" << profile.dpi;
+                deviceManager.setDPI(profile.dpi);
             if (delta.smartShiftChanged)
-                qDebug() << "[main] profileDelta: would set SmartShift"
-                         << profile.smartShiftEnabled << profile.smartShiftThreshold;
+                deviceManager.setSmartShift(profile.smartShiftEnabled, profile.smartShiftThreshold);
             if (delta.scrollChanged)
-                qDebug() << "[main] profileDelta: would set scroll mode"
-                         << profile.scrollDirection << "hiRes=" << profile.hiResScroll;
-            // Suppress unused-variable warning when qDebug is compiled out
-            Q_UNUSED(deviceManager);
+                deviceManager.setScrollConfig(profile.hiResScroll,
+                                              profile.scrollDirection == QStringLiteral("natural"));
+        });
+
+    // 4b. Device setup complete → configure per-device profile dir, load/create default profile
+    QObject::connect(&deviceManager, &logitune::DeviceManager::deviceSetupComplete,
+        [&]() {
+            const QString configBase =
+                QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+            const QString profilesDir = configBase
+                + QStringLiteral("/devices/")
+                + QString::number(deviceManager.deviceVid(), 16)
+                + QStringLiteral("-")
+                + QString::number(deviceManager.devicePid(), 16)
+                + QStringLiteral("-")
+                + deviceManager.deviceSerial()
+                + QStringLiteral("/profiles");
+
+            QDir().mkpath(profilesDir);
+            profileEngine.setDeviceConfigDir(profilesDir);
+            qDebug() << "[main] profile dir:" << profilesDir;
+
+            const QString defaultConf = profilesDir + QStringLiteral("/default.conf");
+            if (!QFile::exists(defaultConf)) {
+                // First connect — seed default profile from current device state
+                logitune::Profile seed;
+                seed.name                = QStringLiteral("Default");
+                seed.dpi                 = deviceManager.currentDPI();
+                seed.smartShiftEnabled   = deviceManager.smartShiftEnabled();
+                seed.smartShiftThreshold = deviceManager.smartShiftThreshold();
+                seed.hiResScroll         = deviceManager.scrollHiRes();
+                seed.scrollDirection     = deviceManager.scrollInvert()
+                    ? QStringLiteral("natural") : QStringLiteral("standard");
+                seed.smoothScrolling     = !deviceManager.scrollRatchet();
+                // buttons default-initialised (all Default)
+                logitune::ProfileEngine::saveProfile(defaultConf, seed);
+                qDebug() << "[main] created default profile at" << defaultConf;
+            }
+
+            // Load the default profile (emits activeProfileChanged + profileDelta)
+            profileEngine.switchToProfile(QStringLiteral("default"));
+            const logitune::Profile &p = profileEngine.activeProfile();
+
+            // Apply to device (profileDelta handler above covers DPI/SmartShift/Scroll;
+            // we also apply here directly to avoid the diff skipping identical-to-current values)
+            deviceManager.setDPI(p.dpi);
+            deviceManager.setSmartShift(p.smartShiftEnabled, p.smartShiftThreshold);
+            deviceManager.setScrollConfig(p.hiResScroll,
+                                          p.scrollDirection == QStringLiteral("natural"));
+
+            // Restore button diversions from profile
+            static const uint16_t kProfileButtonCids[] = { 0x0050, 0x0051, 0x0052, 0x0053, 0x0056, 0x00C3, 0x00C4 };
+            static const QString kDefaultButtonNames[] = {
+                QStringLiteral("Left click"), QStringLiteral("Right click"),
+                QStringLiteral("Middle click"), QStringLiteral("Back"),
+                QStringLiteral("Forward"), QStringLiteral("Gesture button"),
+                QStringLiteral("Shift wheel mode")
+            };
+            for (int i = 0; i < 7; ++i) {
+                const auto &ba = p.buttons[static_cast<std::size_t>(i)];
+                bool needsDivert = (ba.type != logitune::ButtonAction::Default);
+                QString aType;
+                QString aName;
+                switch (ba.type) {
+                case logitune::ButtonAction::Default:
+                    aType = QStringLiteral("default");
+                    aName = kDefaultButtonNames[i];
+                    break;
+                case logitune::ButtonAction::GestureTrigger:
+                    aType = QStringLiteral("gesture-trigger");
+                    aName = QStringLiteral("Gestures");
+                    break;
+                case logitune::ButtonAction::Keystroke:
+                    aType = QStringLiteral("keystroke");
+                    aName = buttonActionToName(ba);
+                    break;
+                case logitune::ButtonAction::AppLaunch:
+                    aType = QStringLiteral("app-launch");
+                    aName = buttonActionToName(ba);
+                    break;
+                default:
+                    aType = QStringLiteral("default");
+                    aName = kDefaultButtonNames[i];
+                    break;
+                }
+                buttonModel.setAction(i, aName, aType);
+                deviceManager.divertButton(kProfileButtonCids[i], needsDivert);
+            }
+
+            qDebug() << "[main] profile applied: DPI=" << p.dpi
+                     << "SmartShift=" << p.smartShiftEnabled
+                     << "scrollInvert=" << (p.scrollDirection == "natural");
+        });
+
+    // 4c. Save profile whenever device settings change
+    QObject::connect(&deviceManager, &logitune::DeviceManager::currentDPIChanged,
+                     [&saveCurrentState]() { saveCurrentState(); });
+    QObject::connect(&deviceManager, &logitune::DeviceManager::smartShiftChanged,
+                     [&saveCurrentState]() { saveCurrentState(); });
+    QObject::connect(&deviceManager, &logitune::DeviceManager::scrollConfigChanged,
+                     [&saveCurrentState]() { saveCurrentState(); });
+    QObject::connect(&deviceManager, &logitune::DeviceManager::thumbWheelModeChanged,
+                     [&saveCurrentState]() { saveCurrentState(); });
+    QObject::connect(&buttonModel, &QAbstractListModel::dataChanged,
+        [&saveCurrentState](const QModelIndex &, const QModelIndex &, const QVector<int> &) {
+            saveCurrentState();
         });
 
     // 5. Diverted button press → profile action lookup → execute
