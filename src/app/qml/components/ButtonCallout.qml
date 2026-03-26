@@ -62,7 +62,7 @@ Item {
             ctx.beginPath()
             ctx.moveTo(cardEdgeX, cardEdgeY)
             ctx.lineTo(hx, hy)
-            ctx.strokeStyle = root.selected ? "#814EFA" : "rgba(255, 255, 255, 0.35)"
+            ctx.strokeStyle = root.selected ? "#814EFA" : "rgba(0, 0, 0, 0.15)"
             ctx.lineWidth = 1.5
             ctx.setLineDash([])
             ctx.stroke()
@@ -82,8 +82,8 @@ Item {
         implicitWidth:  Math.min(contentCol.implicitWidth + 24, 180)
         implicitHeight: contentCol.implicitHeight + 18
         radius: 8
-        color:  root.selected ? "#814EFA" : "#222425"
-        border.color: root.selected ? "#673EC8" : "#333536"
+        color:  root.selected ? "#814EFA" : "#FFFFFF"
+        border.color: root.selected ? "#673EC8" : "#E8E8E8"
         border.width: 1
 
         Behavior on color        { ColorAnimation { duration: 150 } }
@@ -100,7 +100,7 @@ Item {
                 text: root.actionName
                 font.pixelSize: 12
                 font.weight: Font.DemiBold
-                color: root.selected ? "#FFFFFF" : (hoverHandler.hovered ? "#B89DFF" : "#FFFFFF")
+                color: root.selected ? "#FFFFFF" : (hoverHandler.hovered ? "#814EFA" : "#222425")
                 width: Math.min(implicitWidth, 156)
                 elide: Text.ElideRight
 
@@ -111,7 +111,7 @@ Item {
             Text {
                 text: root.buttonName
                 font.pixelSize: 10
-                color: root.selected ? Qt.rgba(1,1,1,0.75) : Qt.rgba(1,1,1,0.45)
+                color: root.selected ? Qt.rgba(1,1,1,0.75) : "#999999"
                 width: Math.min(implicitWidth, 156)
                 elide: Text.ElideRight
 
@@ -124,7 +124,7 @@ Item {
             anchors.fill: parent
             radius: card.radius
             color: hoverHandler.hovered && !root.selected
-                   ? Qt.rgba(1, 1, 1, 0.06) : "transparent"
+                   ? Qt.rgba(0, 0, 0, 0.04) : "transparent"
             Behavior on color { ColorAnimation { duration: 100 } }
         }
 

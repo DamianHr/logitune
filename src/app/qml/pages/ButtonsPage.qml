@@ -41,10 +41,10 @@ Item {
           actionDefault: "Gestures", buttonLabel: "Virtual desktops" },
     ]
 
-    // ── Dark background ──────────────────────────────────────────────────────
+    // ── Background (follows system/light theme) ───────────────────────────────
     Rectangle {
         anchors.fill: parent
-        color: "#1A1A1C"
+        color: "#FFFFFF"
     }
 
     // ── Dismiss panel by clicking the background ─────────────────────────────
@@ -80,12 +80,13 @@ Item {
                 NumberAnimation { duration: 300; easing.type: Easing.InOutCubic }
             }
 
-            // DeviceRender centred in mouseContainer
+            // DeviceRender centred in mouseContainer — side view for buttons page
             DeviceRender {
                 id: deviceRender
                 anchors.centerIn: parent
                 implicitWidth:  280
                 implicitHeight: 414
+                imageSource: "qrc:/Logitune/qml/assets/mx-master-3s-side.png"
 
                 onButtonClicked: function(buttonId) {
                     selectButton(buttonId)

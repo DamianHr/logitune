@@ -10,13 +10,16 @@ Item {
 
     signal buttonClicked(int buttonId)
 
+    // Allow parent to override the image source per page
+    property string imageSource: "qrc:/Logitune/qml/assets/mx-master-3s.png"
+
     // ── Mouse image ──────────────────────────────────────────────────────────
     Image {
         id: mouseImage
         anchors.centerIn: parent
         width: parent.implicitWidth
         height: parent.implicitHeight
-        source: "qrc:/Logitune/qml/assets/mx-master-3s.png"
+        source: root.imageSource
         fillMode: Image.PreserveAspectFit
         smooth: true
         mipmap: true
@@ -80,7 +83,7 @@ Item {
                 width: 18; height: 18
                 radius: 9
                 color: "transparent"
-                border.color: "#FFFFFF"
+                border.color: "#814EFA"
                 border.width: 2
                 opacity: 0.7
 
@@ -91,7 +94,7 @@ Item {
                     anchors.centerIn: parent
                     width: 6; height: 6
                     radius: 3
-                    color: "#FFFFFF"
+                    color: "#814EFA"
                     opacity: 0.6
                 }
             }
