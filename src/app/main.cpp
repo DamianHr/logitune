@@ -149,17 +149,15 @@ int main(int argc, char *argv[])
         [&deviceManager, &actionExecutor](int delta) {
             const QString &mode = deviceManager.thumbWheelMode();
             if (mode == "volume") {
-                // Each notch → one volume step
                 if (delta > 0)
-                    actionExecutor.injectKeystroke("VolumeUp");
-                else if (delta < 0)
                     actionExecutor.injectKeystroke("VolumeDown");
-            } else if (mode == "zoom") {
-                // Ctrl + scroll wheel
-                if (delta > 0)
-                    actionExecutor.injectKeystroke("Ctrl+Up");
                 else if (delta < 0)
+                    actionExecutor.injectKeystroke("VolumeUp");
+            } else if (mode == "zoom") {
+                if (delta > 0)
                     actionExecutor.injectKeystroke("Ctrl+Down");
+                else if (delta < 0)
+                    actionExecutor.injectKeystroke("Ctrl+Up");
             }
             // "scroll" mode = native, no events reach here
         });
