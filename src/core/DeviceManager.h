@@ -59,7 +59,7 @@ public:
     Q_INVOKABLE void setDPI(int value);
     Q_INVOKABLE void setSmartShift(bool enabled, int threshold);
     Q_INVOKABLE void setScrollConfig(bool hiRes, bool invert);
-    Q_INVOKABLE void divertButton(uint16_t controlId, bool divert);
+    Q_INVOKABLE void divertButton(uint16_t controlId, bool divert, bool rawXY = false);
     Q_INVOKABLE void setThumbWheelMode(const QString &mode); // "scroll", "zoom", "volume"
     bool scrollHiRes() const;
     bool scrollInvert() const;
@@ -91,6 +91,7 @@ signals:
     void deviceDisconnected();
     void transportSwitched(const QString &newType);
     void divertedButtonPressed(uint16_t controlId, bool pressed);
+    void gestureRawXY(int16_t dx, int16_t dy);  // raw mouse deltas from diverted gesture button
     void gestureEvent(int dx, int dy, bool released);
     void deviceWoke();
 

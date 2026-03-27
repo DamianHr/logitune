@@ -678,19 +678,21 @@ void DeviceManager::handleNotification(const hidpp::Report &report)
         }
     }
 
-    // ReprogControls (diverted button) notification
+    // ReprogControls notifications (feature index matches ReprogControlsV4)
     if (m_features && m_features->hasFeature(hidpp::FeatureId::ReprogControlsV4)) {
         auto idx = m_features->featureIndex(hidpp::FeatureId::ReprogControlsV4);
         if (idx.has_value() && report.featureIndex == *idx) {
-            qDebug() << "[DeviceManager] ReprogControls raw params:"
-                     << Qt::hex << report.params[0] << report.params[1]
-                     << report.params[2] << report.params[3] << report.params[4];
-            uint16_t controlId = (static_cast<uint16_t>(report.params[0]) << 8)
-                                 | report.params[1];
-            // In ReprogControls v4 diverted events, CID != 0 means button is pressed,
-            // CID == 0 means all buttons released
-            bool pressed = (controlId != 0);
-            emit divertedButtonPressed(controlId, pressed);
+            if (report.functionId == 0) {
+                // DivertedButtonEvent: params[0-1]=CID, CID=0 means released
+                uint16_t controlId = (static_cast<uint16_t>(report.params[0]) << 8)
+                                     | report.params[1];
+                bool pressed = (controlId != 0);
+                emit divertedButtonPressed(controlId, pressed);
+            } else if (report.functionId == 1) {
+                // DivertedRawXYEvent: params[0-1]=dx, params[2-3]=dy (int16 BE)
+                auto evt = hidpp::features::ReprogControls::parseDivertedRawXYEvent(report);
+                emit gestureRawXY(evt.dx, evt.dy);
+            }
             return;
         }
     }
@@ -874,7 +876,7 @@ void DeviceManager::setScrollConfig(bool hiRes, bool invert)
     if (m_hidrawNotifier) m_hidrawNotifier->setEnabled(true);
 }
 
-void DeviceManager::divertButton(uint16_t controlId, bool divert)
+void DeviceManager::divertButton(uint16_t controlId, bool divert, bool rawXY)
 {
     if (!m_connected || !m_features || !m_transport)
         return;
@@ -882,12 +884,14 @@ void DeviceManager::divertButton(uint16_t controlId, bool divert)
         return;
 
     if (m_hidrawNotifier) m_hidrawNotifier->setEnabled(false);
-    auto params = hidpp::features::ReprogControls::buildSetDivert(controlId, divert);
+    auto params = hidpp::features::ReprogControls::buildSetDivert(controlId, divert, rawXY);
     m_features->call(m_transport.get(), m_deviceIndex,
                      hidpp::FeatureId::ReprogControlsV4,
                      hidpp::features::ReprogControls::kFnSetControlReporting,
                      std::span<const uint8_t>(params));
     if (m_hidrawNotifier) m_hidrawNotifier->setEnabled(true);
+    qDebug() << "[DeviceManager] button" << Qt::hex << controlId
+             << (divert ? "diverted" : "undiverted") << (rawXY ? "+rawXY" : "");
 }
 
 QString DeviceManager::thumbWheelMode() const { return m_thumbWheelMode; }

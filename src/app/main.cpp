@@ -143,8 +143,9 @@ int main(int argc, char *argv[])
             if (row < 0 || row >= 7) return;
             QString actionType = buttonModel.actionTypeForButton(row);
             bool needsDivert = (actionType != "default");
+            bool needsRawXY = (actionType == "gesture-trigger");
             uint16_t cid = kButtonCids[row];
-            deviceManager.divertButton(cid, needsDivert);
+            deviceManager.divertButton(cid, needsDivert, needsRawXY);
         });
 
     // 1. Window tracking → ProfileModel (per-app profiles in QML model)
@@ -266,7 +267,8 @@ int main(int argc, char *argv[])
                 buttonModel.setAction(i, aName, aType);
                 if (needsDivert)
                     qDebug() << "[main] diverting button" << i << "CID" << Qt::hex << kProfileButtonCids[i] << "type:" << aType;
-                deviceManager.divertButton(kProfileButtonCids[i], needsDivert);
+                bool needsRawXY = (aType == "gesture-trigger");
+                deviceManager.divertButton(kProfileButtonCids[i], needsDivert, needsRawXY);
             }
 
             qDebug() << "[main] profile applied: DPI=" << p.dpi
@@ -289,10 +291,20 @@ int main(int argc, char *argv[])
         });
 
     // 5. Diverted button press → profile action lookup → execute
-    // Gesture state tracking
-    static QPoint gestureStartPos;
+    // Gesture state — accumulate raw XY deltas from HID++ while button held
+    static int gestureTotalDx = 0;
+    static int gestureTotalDy = 0;
     static bool gestureActive = false;
-    static constexpr int kGestureThreshold = 50; // pixels
+    static constexpr int kGestureThreshold = 50; // raw HID++ units
+
+    // Accumulate raw mouse deltas from device (via ReprogControls RawXY diversion)
+    QObject::connect(&deviceManager, &logitune::DeviceManager::gestureRawXY,
+        [](int16_t dx, int16_t dy) {
+            if (gestureActive) {
+                gestureTotalDx += dx;
+                gestureTotalDy += dy;
+            }
+        });
 
     QObject::connect(&deviceManager, &logitune::DeviceManager::divertedButtonPressed,
         [&buttonModel, &actionModel, &actionExecutor, &deviceManager](uint16_t controlId, bool pressed) {
@@ -306,10 +318,10 @@ int main(int argc, char *argv[])
             // Handle gesture release: CID=0 means all buttons released
             if (!pressed && gestureActive) {
                 gestureActive = false;
-                QPoint end = QCursor::pos();
-                int dx = end.x() - gestureStartPos.x();
-                int dy = end.y() - gestureStartPos.y();
+                int dx = gestureTotalDx;
+                int dy = gestureTotalDy;
 
+                qDebug() << "[main] gesture delta: dx=" << dx << "dy=" << dy;
                 QString dir;
                 if (std::abs(dx) > kGestureThreshold || std::abs(dy) > kGestureThreshold) {
                     if (std::abs(dx) > std::abs(dy))
@@ -354,7 +366,8 @@ int main(int argc, char *argv[])
                 qDebug() << "[main] SmartShift toggled to" << !current;
             } else if (actionType == "gesture-trigger") {
                 // Record start position — direction resolved on release (above)
-                gestureStartPos = QCursor::pos();
+                gestureTotalDx = 0;
+                gestureTotalDy = 0;
                 gestureActive = true;
             } else if (actionType == "app-launch" && !payload.isEmpty()) {
                 actionExecutor.launchApp(payload);
