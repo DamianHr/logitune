@@ -101,9 +101,12 @@ int main(int argc, char *argv[])
     };
 
     // Capture current device + button state into a Profile and save it via ProfileEngine
+    static bool savingProfile = false;
     auto saveCurrentState = [&]() {
+        if (savingProfile) return;  // prevent re-entrant save
         if (!deviceManager.deviceConnected()) return;
-        if (profileEngine.activeProfileName().isEmpty()) return;  // no profile loaded yet
+        if (profileEngine.activeProfileName().isEmpty()) return;
+        savingProfile = true;
         logitune::Profile p = profileEngine.activeProfile();
         if (p.name.isEmpty()) p.name = QStringLiteral("Default");
         p.dpi                 = deviceManager.currentDPI();
@@ -125,7 +128,7 @@ int main(int argc, char *argv[])
                 p.gestures[dir] = {logitune::ButtonAction::Keystroke, ks};
         }
         profileEngine.updateActiveProfile(p);
-        qDebug() << "[main] profile saved:" << profileEngine.activeProfileName();
+        savingProfile = false;
     };
 
     // ── Gesture defaults (matches logid.cfg) ────────────────────────────────
