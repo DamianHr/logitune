@@ -38,7 +38,7 @@ Item {
           actionDefault: "Back", buttonLabel: "Back button" },
         // Gesture — dot at (8%, 58%), LEFT side label
         { buttonId: 5, hotspotXPct: 0.08, hotspotYPct: 0.58, side: "left",
-          actionDefault: "Gestures", buttonLabel: "Virtual desktops" },
+          actionDefault: "Gestures", buttonLabel: "Gesture button" },
     ]
 
     // ── Background (follows system/light theme) ───────────────────────────────
