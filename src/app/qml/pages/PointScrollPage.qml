@@ -34,6 +34,7 @@ Item {
         // Shifts left 130px when detail panel opens
         DeviceRender {
             id: mouseRender
+            imageSource: "qrc:/Logitune/qml/assets/mx-master-3s-side.png"
             anchors.centerIn: parent
             anchors.horizontalCenterOffset: root.activePanelType !== "" ? -130 : 0
             Behavior on anchors.horizontalCenterOffset {
