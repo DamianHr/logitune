@@ -303,14 +303,8 @@ int main(int argc, char *argv[])
                 {0x0053, 3}, {0x0056, 4}, {0x00C3, 5}, {0x00C4, 6}
             };
 
-            auto it = kControlMap.find(controlId);
-            if (it == kControlMap.end()) return;
-            int idx = it->second;
-
-            QString actionType = buttonModel.actionTypeForButton(idx);
-
-            // Handle gesture button release — resolve swipe direction
-            if (!pressed && actionType == "gesture-trigger" && gestureActive) {
+            // Handle gesture release: CID=0 means all buttons released
+            if (!pressed && gestureActive) {
                 gestureActive = false;
                 QPoint end = QCursor::pos();
                 int dx = end.x() - gestureStartPos.x();
@@ -334,8 +328,14 @@ int main(int argc, char *argv[])
                 return;
             }
 
-            if (!pressed) return; // ignore release for non-gesture buttons
+            if (!pressed) return; // ignore other release events
 
+            // Look up button
+            auto it = kControlMap.find(controlId);
+            if (it == kControlMap.end()) return;
+            int idx = it->second;
+
+            QString actionType = buttonModel.actionTypeForButton(idx);
             QString actionName = buttonModel.actionNameForButton(idx);
 
             if (actionType == "default") return;
