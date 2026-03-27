@@ -5,7 +5,6 @@
 #include "hidpp/FeatureDispatcher.h"
 #include <QObject>
 #include <QThread>
-#include <QMutex>
 #include <QSocketNotifier>
 #include <memory>
 
@@ -120,7 +119,6 @@ private:
     std::unique_ptr<hidpp::FeatureDispatcher> m_features;
     QThread m_ioThread;
     QSocketNotifier *m_hidrawNotifier = nullptr;
-    QMutex m_hidrawMutex;  // Serializes fd access: notifier vs settings writes
 
     struct udev *m_udev = nullptr;
     struct udev_monitor *m_udevMon = nullptr;

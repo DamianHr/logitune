@@ -10,7 +10,6 @@
 #include <QDebug>
 #include <QFile>
 #include <QHash>
-#include <QtConcurrent>
 #include <QSocketNotifier>
 
 #include <libudev.h>
@@ -386,12 +385,7 @@ void DeviceManager::probeDevice(const QString &devNode)
     if (!m_hidrawNotifier) {
         m_hidrawNotifier = new QSocketNotifier(m_device->fd(), QSocketNotifier::Read, this);
         connect(m_hidrawNotifier, &QSocketNotifier::activated, this, [this]() {
-            // tryLock: if a settings write holds the mutex, skip — data stays in fd buffer
-            // and the notifier will fire again when the mutex is released
-            if (!m_hidrawMutex.tryLock())
-                return;
-            auto bytes = m_device->readReport(0); // non-blocking, data already available
-            m_hidrawMutex.unlock();
+            auto bytes = m_device->readReport(0);
             if (bytes.empty())
                 return;
             auto report = hidpp::Report::parse(bytes);
@@ -781,25 +775,17 @@ void DeviceManager::setDPI(int value)
     value = qBound(m_minDPI, value, m_maxDPI);
     value = (value / m_dpiStep) * m_dpiStep;
 
-    // Optimistic UI update
     m_currentDPI = value;
     emit currentDPIChanged();
 
-    // Run HID++ write on background thread, mutex blocks notifier during write+read
-    auto *transport = m_transport.get();
-    auto *features = m_features.get();
-    uint8_t devIdx = m_deviceIndex;
-    QMutex *mutex = &m_hidrawMutex;
-
-    QtConcurrent::run([transport, features, devIdx, value, mutex]() {
-        if (!mutex->tryLock(200)) return; // skip if another write is in progress
-        auto params = hidpp::features::AdjustableDPI::buildSetDPI(value);
-        features->call(transport, devIdx,
-                       hidpp::FeatureId::AdjustableDPI,
-                       hidpp::features::AdjustableDPI::kFnSetSensorDpi,
-                       params);
-        mutex->unlock();
-    });
+    // Synchronous HID++ write — disable notifier to prevent fd contention
+    if (m_hidrawNotifier) m_hidrawNotifier->setEnabled(false);
+    auto params = hidpp::features::AdjustableDPI::buildSetDPI(value);
+    m_features->call(m_transport.get(), m_deviceIndex,
+                     hidpp::FeatureId::AdjustableDPI,
+                     hidpp::features::AdjustableDPI::kFnSetSensorDpi,
+                     params);
+    if (m_hidrawNotifier) m_hidrawNotifier->setEnabled(true);
 }
 
 // ---------------------------------------------------------------------------
@@ -819,25 +805,17 @@ void DeviceManager::setSmartShift(bool enabled, int threshold)
     m_smartShiftThreshold = threshold;
     emit smartShiftChanged();
 
-    auto *transport = m_transport.get();
-    auto *features = m_features.get();
-    uint8_t devIdx = m_deviceIndex;
-    QMutex *mutex = &m_hidrawMutex;
-
-    // mode: 2=ratchet (SmartShift active), 1=freespin
     uint8_t mode = enabled ? 2 : 1;
     uint8_t ad = static_cast<uint8_t>(threshold);
 
-    QtConcurrent::run([transport, features, devIdx, mode, ad, mutex]() {
-        if (!mutex->tryLock(200)) return; // skip if busy
-        auto params = hidpp::features::SmartShift::buildSetConfig(mode, ad);
-        features->call(transport, devIdx,
-                       hidpp::FeatureId::SmartShift,
-                       hidpp::features::SmartShift::kFnSetStatus,
-                       std::span<const uint8_t>(params));
-        mutex->unlock();
-        qDebug() << "[DeviceManager] SmartShift set: mode=" << mode << "autoDisengage=" << ad;
-    });
+    if (m_hidrawNotifier) m_hidrawNotifier->setEnabled(false);
+    auto params = hidpp::features::SmartShift::buildSetConfig(mode, ad);
+    m_features->call(m_transport.get(), m_deviceIndex,
+                     hidpp::FeatureId::SmartShift,
+                     hidpp::features::SmartShift::kFnSetStatus,
+                     std::span<const uint8_t>(params));
+    if (m_hidrawNotifier) m_hidrawNotifier->setEnabled(true);
+    qDebug() << "[DeviceManager] SmartShift set: mode=" << mode << "autoDisengage=" << ad;
 }
 
 void DeviceManager::setScrollConfig(bool hiRes, bool invert)
@@ -851,22 +829,13 @@ void DeviceManager::setScrollConfig(bool hiRes, bool invert)
     m_scrollInvert = invert;
     emit scrollConfigChanged();
 
-    auto *transport = m_transport.get();
-    auto *features = m_features.get();
-    uint8_t devIdx = m_deviceIndex;
-    uint8_t currentMode = m_scrollModeByte;
-    QMutex *mutex = &m_hidrawMutex;
-
-    QtConcurrent::run([transport, features, devIdx, hiRes, invert, currentMode, mutex]() {
-        if (!mutex->tryLock(200)) return; // skip if busy
-        auto params = hidpp::features::HiResWheel::buildSetWheelMode(currentMode, hiRes, invert);
-        features->call(transport, devIdx,
-                       hidpp::FeatureId::HiResWheel,
-                       hidpp::features::HiResWheel::kFnSetWheelMode,
-                       std::span<const uint8_t>(params));
-        mutex->unlock();
-        qDebug() << "[DeviceManager] Scroll set: hiRes=" << hiRes << "invert=" << invert;
-    });
+    if (m_hidrawNotifier) m_hidrawNotifier->setEnabled(false);
+    auto params = hidpp::features::HiResWheel::buildSetWheelMode(m_scrollModeByte, hiRes, invert);
+    m_features->call(m_transport.get(), m_deviceIndex,
+                     hidpp::FeatureId::HiResWheel,
+                     hidpp::features::HiResWheel::kFnSetWheelMode,
+                     std::span<const uint8_t>(params));
+    if (m_hidrawNotifier) m_hidrawNotifier->setEnabled(true);
 }
 
 void DeviceManager::divertButton(uint16_t controlId, bool divert)
@@ -876,22 +845,13 @@ void DeviceManager::divertButton(uint16_t controlId, bool divert)
     if (!m_features->hasFeature(hidpp::FeatureId::ReprogControlsV4))
         return;
 
-    auto *transport = m_transport.get();
-    auto *features = m_features.get();
-    uint8_t devIdx = m_deviceIndex;
-    QMutex *mutex = &m_hidrawMutex;
-
-    QtConcurrent::run([transport, features, devIdx, controlId, divert, mutex]() {
-        if (!mutex->tryLock(200)) return; // skip if busy
-        auto params = hidpp::features::ReprogControls::buildSetDivert(controlId, divert);
-        features->call(transport, devIdx,
-                       hidpp::FeatureId::ReprogControlsV4,
-                       hidpp::features::ReprogControls::kFnSetControlReporting,
-                       std::span<const uint8_t>(params));
-        mutex->unlock();
-        qDebug() << "[DeviceManager] button" << Qt::hex << controlId
-                 << (divert ? "diverted" : "undiverted");
-    });
+    if (m_hidrawNotifier) m_hidrawNotifier->setEnabled(false);
+    auto params = hidpp::features::ReprogControls::buildSetDivert(controlId, divert);
+    m_features->call(m_transport.get(), m_deviceIndex,
+                     hidpp::FeatureId::ReprogControlsV4,
+                     hidpp::features::ReprogControls::kFnSetControlReporting,
+                     std::span<const uint8_t>(params));
+    if (m_hidrawNotifier) m_hidrawNotifier->setEnabled(true);
 }
 
 QString DeviceManager::thumbWheelMode() const { return m_thumbWheelMode; }
@@ -907,25 +867,14 @@ void DeviceManager::setThumbWheelMode(const QString &mode)
     m_thumbWheelMode = mode;
     emit thumbWheelModeChanged();
 
-    auto *transport = m_transport.get();
-    auto *features = m_features.get();
-    uint8_t devIdx = m_deviceIndex;
-    QMutex *mutex = &m_hidrawMutex;
-
-    QtConcurrent::run([transport, features, devIdx, divert, mutex]() {
-        if (!mutex->tryLock(200)) return; // skip if busy
-        // ThumbWheel setReporting: params[0]=divert, params[1]=invert
-        std::array<uint8_t, 2> params = {
-            static_cast<uint8_t>(divert ? 0x01 : 0x00),
-            0x00 // no invert
-        };
-        features->call(transport, devIdx,
-                       hidpp::FeatureId::ThumbWheel,
-                       0x02, // setReporting
-                       std::span<const uint8_t>(params));
-        mutex->unlock();
-        qDebug() << "[DeviceManager] thumb wheel" << (divert ? "diverted" : "native");
-    });
+    if (m_hidrawNotifier) m_hidrawNotifier->setEnabled(false);
+    std::array<uint8_t, 2> twParams = {
+        static_cast<uint8_t>(divert ? 0x01 : 0x00), 0x00
+    };
+    m_features->call(m_transport.get(), m_deviceIndex,
+                     hidpp::FeatureId::ThumbWheel, 0x02,
+                     std::span<const uint8_t>(twParams));
+    if (m_hidrawNotifier) m_hidrawNotifier->setEnabled(true);
 }
 
 } // namespace logitune
