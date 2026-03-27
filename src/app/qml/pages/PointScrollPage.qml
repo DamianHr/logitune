@@ -35,13 +35,32 @@ Item {
         DeviceRender {
             id: mouseRender
             imageSource: "qrc:/Logitune/qml/assets/mx-master-3s-side.png"
-            showHotspots: false
+            showHotspots: false  // hide button hotspots — we draw our own 3 circles below
             implicitWidth: 340
             implicitHeight: 503
             anchors.centerIn: parent
             anchors.horizontalCenterOffset: root.activePanelType !== "" ? -130 : 0
             Behavior on anchors.horizontalCenterOffset {
                 NumberAnimation { duration: 300; easing.type: Easing.InOutCubic }
+            }
+        }
+
+        // ── Point & Scroll hotspot circles (3 only) ─────────────────────────
+        // From Options+ core_metadata.json: device_point_scroll_image markers
+        Repeater {
+            model: [
+                { xPct: 0.73, yPct: 0.16 },  // Scroll wheel
+                { xPct: 0.55, yPct: 0.51 },  // Thumb wheel
+                { xPct: 0.83, yPct: 0.54 },  // Pointer speed
+            ]
+            Rectangle {
+                x: mouseRender.x + modelData.xPct * mouseRender.implicitWidth - 9
+                y: mouseRender.y + modelData.yPct * mouseRender.implicitHeight - 9
+                width: 18; height: 18; radius: 9
+                color: "transparent"
+                border.color: "#814EFA"
+                border.width: 2
+                opacity: 0.7
             }
         }
 
