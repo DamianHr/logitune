@@ -7,13 +7,10 @@ ActionModel::ActionModel(QObject *parent)
 {
     //                name                   description                                  actionType         payload
     m_actions = {
-        { "Advanced click",       "Simulate advanced click patterns",          "advanced-click",  ""            },
-        { "App expose",           "Show all windows for current app",           "app-expose",      ""            },
         { "Back",                 "Navigate backward in browser/file manager",  "keystroke",       "Alt+Left"    },
         { "Brightness down",      "Decrease display brightness",                "keystroke",       "BrightnessDown" },
         { "Brightness up",        "Increase display brightness",                "keystroke",       "BrightnessUp" },
         { "Calculator",           "Open the system calculator",                 "app-launch",      "kcalc"       },
-        { "Change pointer speed", "Adjust pointer sensitivity on the fly",      "pointer-speed",   ""            },
         { "Close window",         "Close the active window",                    "keystroke",       "Alt+F4"      },
         { "Copy",                 "Copy selected content to clipboard",         "keystroke",       "Ctrl+C"      },
         { "Cut",                  "Cut selected content to clipboard",          "keystroke",       "Ctrl+X"      },
