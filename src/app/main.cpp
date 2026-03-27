@@ -8,6 +8,7 @@
 #include <QMenu>
 #include <QAction>
 #include <QCursor>
+#include <QQmlContext>
 #include <QQuickWindow>
 #include <QStandardPaths>
 #include <QDebug>
@@ -34,6 +35,13 @@ int main(int argc, char *argv[])
     fprintf(stderr, "[logitune] QApplication created\n");
     app.setOrganizationName("Logitune");
     app.setApplicationName("Logitune");
+
+    // Detect dark mode from system palette
+    QColor windowBg = app.palette().window().color();
+    double lum = windowBg.redF() * 0.299 + windowBg.greenF() * 0.587 + windowBg.blueF() * 0.114;
+    bool isDark = lum < 0.5;
+    fprintf(stderr, "[logitune] palette bg: r=%.2f g=%.2f b=%.2f lum=%.2f dark=%d\n",
+            windowBg.redF(), windowBg.greenF(), windowBg.blueF(), lum, isDark);
 
     fprintf(stderr, "[logitune] creating DeviceManager...\n");
     logitune::DeviceManager deviceManager;
@@ -456,6 +464,9 @@ int main(int argc, char *argv[])
     QQmlApplicationEngine engine;
 
     // Register singletons — provide existing instances
+    // Pass dark mode flag to QML
+    engine.rootContext()->setContextProperty("systemDarkMode", isDark);
+
     qmlRegisterSingletonInstance("Logitune", 1, 0, "DeviceModel",  &deviceModel);
     qmlRegisterSingletonInstance("Logitune", 1, 0, "ButtonModel",  &buttonModel);
     qmlRegisterSingletonInstance("Logitune", 1, 0, "ActionModel",  &actionModel);
