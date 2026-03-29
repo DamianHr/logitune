@@ -11,6 +11,7 @@ add_executable(logitune-tests
     test_profile_engine.cpp
     test_device_discovery.cpp
     test_action_executor.cpp
+    test_device_registry.cpp
 )
 target_link_libraries(logitune-tests PRIVATE logitune-core GTest::gtest_main)
 gtest_discover_tests(logitune-tests)

@@ -1,11 +1,13 @@
 qt_add_executable(logitune
     main.cpp
-    WindowTracker.cpp
+    AppController.cpp
     models/DeviceModel.cpp
     models/ButtonModel.cpp
     models/ActionModel.cpp
     models/ProfileModel.cpp
 )
+
+set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
 qt_add_qml_module(logitune
     URI Logitune

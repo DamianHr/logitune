@@ -1,0 +1,248 @@
+#include "desktop/KDeDesktop.h"
+#include <QDBusConnection>
+#include <QDBusMessage>
+#include <QDBusReply>
+#include <QDebug>
+#include <QProcessEnvironment>
+#include <QVariantMap>
+#include <QSet>
+#include <QDir>
+#include <QFileInfo>
+#include <QSettings>
+#include <algorithm>
+
+namespace logitune {
+
+KDeDesktop::KDeDesktop(QObject *parent)
+    : IDesktopIntegration(parent)
+{
+}
+
+void KDeDesktop::start()
+{
+    // Connect to the KWin script engine D-Bus interface to detect window changes.
+    // KWin exposes window activity via org.kde.KWin on the session bus.
+    m_kwin = new QDBusInterface(
+        QStringLiteral("org.kde.KWin"),
+        QStringLiteral("/KWin"),
+        QStringLiteral("org.kde.KWin"),
+        QDBusConnection::sessionBus(),
+        this);
+
+    if (!m_kwin->isValid()) {
+        m_available = false;
+        return;
+    }
+
+    m_available = true;
+
+    // KWin 5.x emits activeClientChanged, KDE 6 removed it.
+    // Try the signal first, fall back to polling.
+    bool connected = QDBusConnection::sessionBus().connect(
+        QStringLiteral("org.kde.KWin"),
+        QStringLiteral("/KWin"),
+        QStringLiteral("org.kde.KWin"),
+        QStringLiteral("activeClientChanged"),
+        this,
+        SLOT(onActiveWindowChanged()));
+
+    // KDE 6: activeClientChanged connects but never fires. Always use poll fallback.
+    if (true) {
+        m_pollTimer = new QTimer(this);
+        m_pollTimer->setInterval(500);
+        connect(m_pollTimer, &QTimer::timeout, this, &KDeDesktop::pollActiveWindow);
+        m_pollTimer->start();
+    }
+}
+
+bool KDeDesktop::available() const
+{
+    return m_available;
+}
+
+QString KDeDesktop::desktopName() const
+{
+    return QStringLiteral("KDE");
+}
+
+QStringList KDeDesktop::detectedCompositors() const
+{
+    QStringList compositors;
+    const QString desktop = QProcessEnvironment::systemEnvironment()
+                                .value(QStringLiteral("XDG_CURRENT_DESKTOP"));
+    if (desktop.contains(QStringLiteral("KDE"), Qt::CaseInsensitive))
+        compositors << QStringLiteral("KWin");
+    return compositors;
+}
+
+void KDeDesktop::onActiveWindowChanged()
+{
+    if (!m_kwin || !m_kwin->isValid())
+        return;
+
+    // Ask KWin for the active client's details.
+    // We call org.kde.KWin.activeClient() to get the window id, then query
+    // org.kde.KWin.Client (the active window's interface) for resourceClass / caption.
+    QDBusMessage reply = m_kwin->call(QStringLiteral("activeClient"));
+    if (reply.type() != QDBusMessage::ReplyMessage || reply.arguments().isEmpty())
+        return;
+
+    // The active client is returned as an object path or int depending on KWin version.
+    // For KWin >= 5.23 it is an object path under /org/kde/KWin/Clients/<id>.
+    QString wmClass;
+    QString title;
+
+    QVariant clientVariant = reply.arguments().first();
+    QString clientPath = clientVariant.toString();
+
+    if (!clientPath.isEmpty()) {
+        QDBusInterface clientIface(
+            QStringLiteral("org.kde.KWin"),
+            clientPath,
+            QStringLiteral("org.kde.KWin.Window"),
+            QDBusConnection::sessionBus());
+
+        if (clientIface.isValid()) {
+            wmClass = clientIface.property("resourceClass").toString();
+            title   = clientIface.property("caption").toString();
+        }
+    }
+
+    emit activeWindowChanged(wmClass, title);
+}
+
+void KDeDesktop::pollActiveWindow()
+{
+    // KDE 6: no D-Bus method for active window. Use a persistent KWin script
+    // that writes active window info to a temp file on workspace.activeWindow change.
+    static bool scriptInstalled = false;
+    static const QString dataFile = QDir::tempPath() + QStringLiteral("/logitune_active_window");
+
+    if (!scriptInstalled) {
+        // Register our D-Bus service so KWin script can call us back
+        QDBusConnection::sessionBus().registerService(QStringLiteral("com.logitune.app"));
+        QDBusConnection::sessionBus().registerObject(
+            QStringLiteral("/FocusWatcher"), this,
+            QDBusConnection::ExportAllSlots);
+
+        // Create a KWin script that watches for window focus changes
+        // and calls back to our D-Bus service
+        QString scriptPath = QDir::tempPath() + QStringLiteral("/logitune_focus_watcher.js");
+        QFile f(scriptPath);
+        if (f.open(QIODevice::WriteOnly)) {
+            f.write(
+                "function update() {\n"
+                "    var c = workspace.activeWindow;\n"
+                "    if (c) {\n"
+                "        callDBus('com.logitune.app', '/FocusWatcher',\n"
+                "                 'local.logitune.logitune.KDeDesktop', 'focusChanged',\n"
+                "                 c.resourceClass, c.caption);\n"
+                "    }\n"
+                "}\n"
+                "workspace.windowActivated.connect(update);\n"
+                "update();\n"
+            );
+            f.close();
+        }
+
+        QDBusMessage loadMsg = QDBusMessage::createMethodCall(
+            QStringLiteral("org.kde.KWin"),
+            QStringLiteral("/Scripting"),
+            QStringLiteral("org.kde.kwin.Scripting"),
+            QStringLiteral("loadScript"));
+        loadMsg << scriptPath << QStringLiteral("logitune_focus_watcher");
+        QDBusConnection::sessionBus().call(loadMsg);
+
+        QDBusMessage startMsg = QDBusMessage::createMethodCall(
+            QStringLiteral("org.kde.KWin"),
+            QStringLiteral("/Scripting"),
+            QStringLiteral("org.kde.kwin.Scripting"),
+            QStringLiteral("start"));
+        QDBusConnection::sessionBus().call(startMsg);
+
+        scriptInstalled = true;
+
+        // Stop the timer — we'll get callbacks instead
+        if (m_pollTimer) {
+            m_pollTimer->stop();
+            m_pollTimer->deleteLater();
+            m_pollTimer = nullptr;
+        }
+    }
+}
+
+void KDeDesktop::focusChanged(const QString &wmClass, const QString &title)
+{
+    if (wmClass == m_lastWmClass) return;
+    m_lastWmClass = wmClass;
+    emit activeWindowChanged(wmClass, title);
+}
+
+QVariantList KDeDesktop::runningApplications() const
+{
+    // Scan installed .desktop files for GUI applications
+    QVariantList result;
+    QSet<QString> seen;
+
+    const QStringList dirs = {
+        QStringLiteral("/usr/share/applications"),
+        QDir::homePath() + QStringLiteral("/.local/share/applications"),
+        QStringLiteral("/var/lib/flatpak/exports/share/applications"),
+        QDir::homePath() + QStringLiteral("/.local/share/flatpak/exports/share/applications"),
+        QStringLiteral("/var/lib/snapd/desktop/applications")
+    };
+
+    for (const QString &dir : dirs) {
+        QDir d(dir);
+        if (!d.exists()) continue;
+
+        const QStringList files = d.entryList({QStringLiteral("*.desktop")}, QDir::Files);
+        for (const QString &file : files) {
+            QSettings desktop(d.filePath(file), QSettings::IniFormat);
+            desktop.beginGroup(QStringLiteral("Desktop Entry"));
+
+            QString type = desktop.value(QStringLiteral("Type")).toString();
+            if (type != QStringLiteral("Application")) continue;
+            if (desktop.value(QStringLiteral("NoDisplay")).toBool()) continue;
+
+            QString name = desktop.value(QStringLiteral("Name")).toString();
+            QString icon = desktop.value(QStringLiteral("Icon")).toString();
+
+            // On KDE 6 / Wayland, KWin's resourceClass matches the .desktop file
+            // completeBaseName (e.g. "org.kde.dolphin"), NOT StartupWMClass (e.g. "dolphin").
+            // Use completeBaseName so profile bindings match exactly.
+            QString wmClass = QFileInfo(file).completeBaseName();
+
+            if (name.isEmpty() || seen.contains(wmClass.toLower()))
+                continue;
+
+            seen.insert(wmClass.toLower());
+            QVariantMap entry;
+            entry[QStringLiteral("wmClass")] = wmClass;
+            entry[QStringLiteral("title")] = name;
+            entry[QStringLiteral("icon")] = icon;
+            result.append(entry);
+        }
+    }
+
+    // Sort by name
+    std::sort(result.begin(), result.end(), [](const QVariant &a, const QVariant &b) {
+        return a.toMap()[QStringLiteral("title")].toString().toLower()
+             < b.toMap()[QStringLiteral("title")].toString().toLower();
+    });
+
+    return result;
+}
+
+void KDeDesktop::blockGlobalShortcuts(bool block)
+{
+    QDBusMessage msg = QDBusMessage::createMethodCall(
+        QStringLiteral("org.kde.kglobalaccel"),
+        QStringLiteral("/kglobalaccel"),
+        QStringLiteral("org.kde.KGlobalAccel"),
+        QStringLiteral("blockGlobalShortcuts"));
+    msg << block;
+    QDBusConnection::sessionBus().call(msg, QDBus::NoBlock);
+}
+
+} // namespace logitune

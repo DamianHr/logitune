@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include "DeviceManager.h"
+#include "DeviceRegistry.h"
 
 using namespace logitune;
 
@@ -11,9 +12,11 @@ TEST(DeviceDiscovery, IdentifyBoltReceiver) {
 }
 
 TEST(DeviceDiscovery, IdentifyDirectDevice) {
-    EXPECT_TRUE(DeviceManager::isDirectDevice(0xb034));
-    EXPECT_FALSE(DeviceManager::isDirectDevice(0xc548));
-    EXPECT_FALSE(DeviceManager::isDirectDevice(0x0000));
+    DeviceRegistry registry;
+    DeviceManager dm(&registry);
+    EXPECT_TRUE(dm.isDirectDevice(0xb034));
+    EXPECT_FALSE(dm.isDirectDevice(0xc548));
+    EXPECT_FALSE(dm.isDirectDevice(0x0000));
 }
 
 TEST(DeviceDiscovery, DeviceIndexForTransport) {

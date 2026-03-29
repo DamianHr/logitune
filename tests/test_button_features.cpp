@@ -48,7 +48,8 @@ TEST(ReprogControls, BuildUndivertRequest) {
     auto params = ReprogControls::buildSetDivert(0x0050, false);
     EXPECT_EQ(params[0], 0x00);
     EXPECT_EQ(params[1], 0x50);
-    EXPECT_EQ(params[2], 0x00);
+    // 0x02 = ChangeTemporaryDivert set, TemporaryDiverted clear (undivert)
+    EXPECT_EQ(params[2], 0x02);
 }
 
 TEST(ReprogControls, ParseDivertedButtonEvent) {

@@ -16,8 +16,15 @@ target_sources(logitune-core PRIVATE
     hidpp/features/DeviceName.cpp
     ProfileEngine.cpp
     ActionExecutor.cpp
+    DeviceRegistry.cpp
+    devices/MxMaster3sDescriptor.cpp
+    interfaces/IDesktopIntegration.cpp
+    interfaces/IInputInjector.cpp
+    desktop/KDeDesktop.cpp
+    desktop/GenericDesktop.cpp
+    input/UinputInjector.cpp
 )
 
 target_include_directories(logitune-core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(logitune-core PUBLIC Qt6::Core Qt6::DBus Qt6::Concurrent ${UDEV_LIBRARIES})
+target_link_libraries(logitune-core PUBLIC Qt6::Core Qt6::DBus ${UDEV_LIBRARIES})
 target_include_directories(logitune-core PRIVATE ${UDEV_INCLUDE_DIRS})
