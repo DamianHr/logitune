@@ -1,0 +1,32 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  flatpak:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder
+          flatpak --user remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          flatpak --user install -y flathub org.kde.Platform//6.10 org.kde.Sdk//6.10
+
+      - name: Build Flatpak
+        run: |
+          flatpak-builder --user --install --force-clean build-flatpak com.logitune.Logitune.yml
+
+      - name: Create bundle
+        run: |
+          flatpak build-bundle ~/.local/share/flatpak/repo logitune.flatpak com.logitune.Logitune
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: logitune.flatpak
+          generate_release_notes: true

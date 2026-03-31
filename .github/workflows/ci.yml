@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake ninja-build pkg-config \
+            qt6-base-dev qt6-declarative-dev qt6-svg-dev \
+            qt6-tools-dev qt6-tools-dev-tools \
+            qml6-module-qtquick qml6-module-qtquick-controls \
+            qml6-module-qtquick-layouts qml6-module-qtquick-window \
+            qml6-module-qtquick-templates qml6-module-qtqml-workerscript \
+            qml6-module-qtquick-dialogs qml6-module-qt5compat-graphicaleffects \
+            qt6-qpa-plugins libqt6opengl6-dev libqt6svg6-dev \
+            libqt6dbus6 libqt6widgets6 libxkbcommon-dev \
+            qml6-module-qttest libudev-dev libgtest-dev
+          cd /usr/src/googletest && sudo cmake -B build && sudo cmake --build build && sudo cmake --install build
+
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
+        env:
+          QT_QPA_PLATFORM: offscreen
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+        env:
+          QT_QPA_PLATFORM: offscreen
+
+      - name: C++ tests
+        run: QT_QPA_PLATFORM=offscreen ./build/tests/logitune-tests
+
+      - name: Tray tests
+        run: QT_QPA_PLATFORM=offscreen ./build/tests/logitune-tray-tests
+
+      - name: QML tests
+        run: QT_QPA_PLATFORM=offscreen ./build/tests/qml/logitune-qml-tests
