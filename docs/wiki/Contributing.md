@@ -132,7 +132,7 @@ feat: add DPI shift button action
 Hold a button to temporarily lower DPI for precision aiming.
 Implemented as ButtonAction::DpiShift with configurable target DPI.
 
-feat: Flatpak packaging, devcontainer for GitHub Codespaces
+feat: native package builds (.deb, .rpm, Arch), devcontainer for GitHub Codespaces
 
 fix: thumb wheel direction — clockwise should zoom in
 

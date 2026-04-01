@@ -27,7 +27,7 @@ The UI is modeled after Logitech's Options+ application — a sidebar navigation
 | Page | Description |
 |------|-------------|
 | [Getting Started](Getting-Started) | Installation, first run, permissions, UI overview |
-| [Building](Building) | Build from source, Flatpak, devcontainer, CI |
+| [Building](Building) | Build from source, native packages, devcontainer, CI |
 | [Architecture](Architecture) | System design, signal flow, MVVM, HID++ protocol layer |
 | [Adding a Device](Adding-a-Device) | Step-by-step guide to adding support for a new Logitech device |
 | [Adding a Desktop Environment](Adding-a-Desktop-Environment) | How to add GNOME, Hyprland, or other DE support |

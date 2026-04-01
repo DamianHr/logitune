@@ -2,16 +2,33 @@
 
 ## Installation
 
-### Flatpak (Recommended)
+Download the latest package for your distribution from the [Releases](https://github.com/logitune/logitune/releases) page.
 
-Download the latest `.flatpak` bundle from the [Releases](https://github.com/logitune/logitune/releases) page:
+### Ubuntu / Debian
 
 ```bash
-flatpak install --user logitune.flatpak
-flatpak run com.logitune.Logitune
+sudo apt install ./logitune-VERSION_amd64.deb
 ```
 
-The Flatpak manifest (`com.logitune.Logitune.yml`) uses the KDE 6.10 runtime and SDK. It requests access to `--device=all` for hidraw and registers the D-Bus name `com.logitune.app` for KWin focus tracking.
+### Fedora
+
+```bash
+sudo dnf install logitune-VERSION.rpm
+```
+
+### Arch Linux (AUR)
+
+```bash
+makepkg -si
+```
+
+Or using an AUR helper:
+
+```bash
+yay -S logitune
+```
+
+Native packages automatically install udev rules and set device permissions — no manual `udevadm` steps needed.
 
 ### From Source
 
@@ -21,25 +38,25 @@ See [Building](Building) for full instructions. The short version:
 git clone https://github.com/logitune/logitune.git
 cd logitune
 make build
-make run
+make install
 ```
-
-### Arch Linux (AUR)
-
-An AUR package is planned for future releases.
 
 ## First Run
 
 ### udev Rules
 
-Logitune needs read/write access to hidraw devices and uinput for keystroke injection. A udev rules file is included at `data/71-logitune.rules`:
+Logitune needs read/write access to hidraw devices and uinput for keystroke injection. The udev rules file (`data/71-logitune.rules`) contains:
 
 ```
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="046d", TAG+="uaccess"
 KERNEL=="uinput", SUBSYSTEM=="misc", TAG+="uaccess"
 ```
 
-Install it:
+**If you installed a native package** (`.deb`, `.rpm`, or AUR), the rules are installed and activated automatically — no manual steps needed.
+
+**If you installed from source** (`make install`), the rules are also installed automatically.
+
+**If you built without installing**, install the rules manually:
 
 ```bash
 sudo cp data/71-logitune.rules /etc/udev/rules.d/
@@ -58,6 +75,8 @@ If Logitune starts but shows "No device connected":
 3. **Check the device is detected**: Run with `--debug` flag to see device scanning logs
 
 ```bash
+logitune --debug
+# or, if running from the build directory:
 ./build/src/app/logitune --debug
 ```
 

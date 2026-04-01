@@ -64,17 +64,30 @@
 
 ## 🚀 Quick Start
 
-**Flatpak:**
+**Ubuntu/Debian:**
 ```bash
-flatpak install logitune.flatpak
-flatpak run com.logitune.Logitune
+sudo apt install ./logitune-VERSION_amd64.deb
+logitune
+```
+
+**Fedora:**
+```bash
+sudo dnf install logitune-VERSION.rpm
+logitune
+```
+
+**Arch Linux:**
+```bash
+makepkg -si   # from AUR, or: make package-arch
+logitune
 ```
 
 **From source:**
 ```bash
 make build
 make test-all
-make run
+make install
+logitune
 ```
 
 **GitHub Codespaces:** Click "Create codespace" — full dev environment in one click.
@@ -84,7 +97,7 @@ make run
 | Guide | Description |
 |-------|-------------|
 | [🏁 Getting Started](https://github.com/mmaher88/logitune/wiki/Getting-Started) | Installation, permissions, UI overview |
-| [🔨 Building](https://github.com/mmaher88/logitune/wiki/Building) | Prerequisites, build commands, Flatpak, devcontainer |
+| [🔨 Building](https://github.com/mmaher88/logitune/wiki/Building) | Prerequisites, build commands, native packages, devcontainer |
 | [🏗️ Architecture](https://github.com/mmaher88/logitune/wiki/Architecture) | System design, signal flow, 14 Mermaid diagrams |
 | [🖱️ Adding a Device](https://github.com/mmaher88/logitune/wiki/Adding-a-Device) | Step-by-step guide with code examples |
 | [🖥️ Adding a Desktop Environment](https://github.com/mmaher88/logitune/wiki/Adding-a-Desktop-Environment) | Interface, GNOME scaffold, DE comparison |
@@ -117,7 +130,7 @@ make run
 
 ## 🛠️ Tech Stack
 
-C++20 · Qt 6 Quick · CMake · HID++ 2.0 · GTest · Flatpak
+C++20 · Qt 6 Quick · CMake · HID++ 2.0 · GTest
 
 ## 📄 License
 

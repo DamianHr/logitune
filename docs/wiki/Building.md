@@ -85,9 +85,12 @@ The Makefile provides these targets:
 | `make test-qml` | Run QML component tests |
 | `make test-tray` | Run tray manager tests |
 | `make test-all` | Run all test tiers |
-| `make flatpak-setup` | Install Flatpak SDK (first time, ~2GB) |
-| `make flatpak` | Build and install Flatpak |
-| `make release` | Version bump, tag, Flatpak, GitHub release |
+| `make package-deb` | Build a `.deb` package |
+| `make package-rpm` | Build an `.rpm` package |
+| `make package-arch` | Build an Arch package |
+| `make install` | Install to system (`/usr/local`) |
+| `make uninstall` | Remove system install |
+| `make release` | Version bump, tag, push |
 | `make setup-hooks` | Install git pre-push hook |
 | `make clean` | Remove build artifacts |
 | `make help` | Show all targets |
@@ -106,7 +109,6 @@ The Makefile provides these targets:
 logitune/
 ├── CMakeLists.txt              # Root CMake — project, Qt find, subdirs
 ├── Makefile                    # Developer convenience targets
-├── com.logitune.Logitune.yml   # Flatpak manifest
 ├── data/
 │   ├── 71-logitune.rules       # udev rules for hidraw + uinput
 │   ├── com.logitune.Logitune.desktop
@@ -187,40 +189,41 @@ logitune/
 │   └── release.sh
 └── .github/workflows/
     ├── ci.yml                  # Build + test on push/PR
-    └── release.yml             # Flatpak bundle on tag push
+    └── release.yml             # Native packages on tag push
 ```
 
-## Flatpak Build
+## Native Package Builds
 
-### First-Time Setup
+### Ubuntu / Debian (.deb)
 
 ```bash
-make flatpak-setup
+make package-deb
+sudo apt install ./logitune-VERSION_amd64.deb
 ```
 
-This installs the Flathub remote and the KDE Platform/SDK 6.10 runtime (~2GB download).
+The `.deb` package installs the binary, udev rules (`71-logitune.rules`), and `.desktop` file. udev rules are activated automatically on install, so no manual `udevadm` steps are required.
 
-### Build
-
-On host (builds and installs locally):
+### Fedora / RHEL (.rpm)
 
 ```bash
-make flatpak
+make package-rpm
+sudo dnf install logitune-VERSION.rpm
 ```
 
-In devcontainer (build only — no user session):
+### Arch Linux
 
 ```bash
-make flatpak
+make package-arch   # builds with makepkg
 ```
 
-The Flatpak manifest (`com.logitune.Logitune.yml`) configures:
+Or install from AUR directly. The package installs udev rules and reloads them via a `post_install` hook.
 
-- **Runtime**: `org.kde.Platform` 6.10
-- **D-Bus**: talks to `org.kde.KWin` and `org.kde.kglobalaccel`, owns `com.logitune.app`
-- **Device access**: `--device=all` for hidraw
-- **Host filesystem**: Read-only access to host `.desktop` files for the app profile picker
-- **Config persistence**: `~/.config/Logitune` and `~/.local/share/Logitune` shared between host and sandbox
+### System Install from Source
+
+```bash
+make install    # installs to /usr/local, copies udev rules, reloads udev
+make uninstall  # removes all installed files
+```
 
 ## Devcontainer / GitHub Codespaces
 
@@ -232,7 +235,6 @@ The Dockerfile (`/.devcontainer/Dockerfile`) builds an Ubuntu 24.04 container wi
 
 - All build dependencies (Qt 6, CMake, Ninja, GTest, libudev)
 - Development tools (clangd, gdb, fish shell, bat, eza, ripgrep, fzf)
-- Flatpak builder
 - Nerd Font for terminal icons
 - `QT_QPA_PLATFORM=offscreen` for headless testing
 
@@ -286,11 +288,12 @@ The release workflow (`.github/workflows/release.yml`) triggers on version tags 
 
 ```mermaid
 graph LR
-    A[Tag Push v*] --> B[Install Flatpak Builder]
-    B --> C[Install KDE SDK 6.10]
-    C --> D[flatpak-builder]
-    D --> E[Create Bundle]
-    E --> F[GitHub Release]
+    A[Tag Push v*] --> B[Build .deb]
+    A --> C[Build .rpm]
+    A --> D[Build Arch package]
+    B --> E[GitHub Release]
+    C --> E
+    D --> E
 ```
 
-It builds a `.flatpak` bundle and creates a GitHub Release with auto-generated release notes.
+It builds native packages for each distro family and creates a GitHub Release with auto-generated release notes.

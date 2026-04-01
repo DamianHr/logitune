@@ -333,7 +333,7 @@ If you are adding a second DE implementation, consider extracting these shared u
 
 1. **`resolveDesktopFile()`** — `.desktop` file lookup by resourceClass/StartupWMClass
 2. **`runningApplications()`** — scanning `.desktop` files for GUI applications
-3. **Desktop directory list** — `/usr/share/applications`, Flatpak paths, etc.
+3. **Desktop directory list** — `/usr/share/applications`, `~/.local/share/applications`, Flatpak/Snap paths, etc.
 
 These could live in a `DesktopUtils` static class or be moved to the `GenericDesktop` base class.
 

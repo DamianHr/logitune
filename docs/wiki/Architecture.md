@@ -549,17 +549,16 @@ sequenceDiagram
 A critical problem: the same application can have different identifiers depending on how it's packaged:
 
 - Zoom: `resourceClass="zoom"`, but `.desktop` file is `us.zoom.Zoom.desktop`
-- Firefox Flatpak: `desktopFileName="org.mozilla.firefox"`
+- Firefox: `desktopFileName="org.mozilla.firefox"`
 - Native KDE apps: `desktopFileName="org.kde.dolphin"`
 
 `resolveDesktopFile()` searches these directories:
 
 1. `/usr/share/applications`
-2. `/run/host/usr/share/applications` (host apps inside Flatpak)
-3. `~/.local/share/applications`
-4. `/var/lib/flatpak/exports/share/applications`
-5. `~/.local/share/flatpak/exports/share/applications`
-6. `/var/lib/snapd/desktop/applications`
+2. `~/.local/share/applications`
+3. `/var/lib/flatpak/exports/share/applications` (Flatpak apps installed on the host)
+4. `~/.local/share/flatpak/exports/share/applications`
+5. `/var/lib/snapd/desktop/applications`
 
 It matches by:
 1. Last component of the `.desktop` filename (e.g., "Zoom" from "us.zoom.Zoom")
