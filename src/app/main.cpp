@@ -27,6 +27,7 @@ int main(int argc, char *argv[])
     app.setApplicationName("Logitune");
     app.setApplicationVersion("0.1.0");
     app.setQuitOnLastWindowClosed(false);  // tray icon keeps app alive
+    app.setWindowIcon(QIcon(":/Logitune/qml/assets/logitune-icon.svg"));
 
     // Single-instance guard — prevent two instances fighting over the device
     QLockFile lockFile(QStandardPaths::writableLocation(QStandardPaths::TempLocation)

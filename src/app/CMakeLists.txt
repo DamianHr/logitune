@@ -52,6 +52,8 @@ qt_add_qml_module(logitune-app-lib
         qml/assets/mx-master-3s.png
         qml/assets/mx-master-3s-back.png
         qml/assets/mx-master-3s-side.png
+        qml/assets/logitune-icon.svg
+        qml/assets/logitune-tray.svg
 )
 
 # ── Executable: main entry point ─────────────────────────────────────────

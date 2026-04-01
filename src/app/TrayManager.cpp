@@ -7,7 +7,7 @@ namespace logitune {
 TrayManager::TrayManager(DeviceModel *dm, QObject *parent)
     : QObject(parent)
 {
-    m_trayIcon.setIcon(QIcon::fromTheme("input-mouse"));
+    m_trayIcon.setIcon(QIcon(":/Logitune/qml/assets/logitune-tray.svg"));
     m_trayIcon.setToolTip("Logitune - MX Master 3S");
 
     m_showAction = m_menu.addAction("Show Logitune");
