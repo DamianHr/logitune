@@ -1,0 +1,350 @@
+# Adding a Desktop Environment
+
+Logitune uses per-application profiles that switch automatically when window focus changes. This requires desktop environment integration for focus tracking. This guide explains how to add support for a new DE.
+
+## Interface
+
+All desktop integrations implement `IDesktopIntegration` (defined in `src/core/interfaces/IDesktopIntegration.h`):
+
+```cpp
+class IDesktopIntegration : public QObject {
+    Q_OBJECT
+public:
+    virtual void start() = 0;
+    virtual bool available() const = 0;
+    virtual QString desktopName() const = 0;
+    virtual QStringList detectedCompositors() const = 0;
+    virtual void blockGlobalShortcuts(bool block) = 0;
+    virtual QVariantList runningApplications() const = 0;
+
+signals:
+    void activeWindowChanged(const QString &wmClass, const QString &title);
+};
+```
+
+### Required Methods
+
+| Method | Purpose | When Called |
+|--------|---------|------------|
+| `start()` | Initialize focus tracking (install scripts, connect signals, start polling) | Once, after AppController::init() |
+| `available()` | Return true if this DE is detected and usable | Checked before relying on DE features |
+| `desktopName()` | Human-readable name (e.g., "KDE", "GNOME") | Logging and UI |
+| `detectedCompositors()` | List of detected compositor names | Diagnostics |
+| `blockGlobalShortcuts(bool)` | Temporarily disable global shortcuts during keystroke capture | During KeystrokeCapture QML component |
+| `runningApplications()` | Return list of installed GUI applications | App profile picker dialog |
+
+### The Critical Signal
+
+```cpp
+void activeWindowChanged(const QString &wmClass, const QString &title);
+```
+
+This signal drives the entire profile switching system. `wmClass` must be a **stable, unique identifier** for the application. On KDE, this is the `.desktop` file's `completeBaseName` (e.g., `org.kde.dolphin`). On other DEs, it might be the X11 `WM_CLASS` or a Wayland `app_id`.
+
+## Existing Implementations
+
+### KDeDesktop
+
+The KDE implementation (`src/core/desktop/KDeDesktop.h/cpp`) uses:
+
+1. **KWin Script** — a JavaScript snippet loaded into KWin via D-Bus that calls back on `workspace.windowActivated`
+2. **D-Bus callback** — the script calls `com.logitune.app /FocusWatcher focusChanged(resourceClass, title, desktopFileName)`
+3. **Desktop file resolution** — maps `resourceClass` to canonical `.desktop` file baseName
+4. **kglobalaccel D-Bus** — blocks global shortcuts during keystroke capture
+
+### GenericDesktop
+
+The generic fallback (`src/core/desktop/GenericDesktop.h/cpp`) provides a minimal implementation. It is used when no specific DE is detected.
+
+## Step-by-Step: Adding GNOME Support
+
+### Step 1: Create the class
+
+Create `src/core/desktop/GnomeDesktop.h`:
+
+```cpp
+#pragma once
+#include "interfaces/IDesktopIntegration.h"
+#include <QDBusInterface>
+#include <QTimer>
+
+namespace logitune {
+
+class GnomeDesktop : public IDesktopIntegration {
+    Q_OBJECT
+public:
+    explicit GnomeDesktop(QObject *parent = nullptr);
+
+    void start() override;
+    bool available() const override;
+    QString desktopName() const override;
+    QStringList detectedCompositors() const override;
+    void blockGlobalShortcuts(bool block) override;
+    QVariantList runningApplications() const override;
+
+private:
+    bool m_available = false;
+    QString m_lastAppId;
+    QTimer *m_pollTimer = nullptr;
+
+    void pollActiveWindow();
+    QString resolveAppId(const QString &wmClass) const;
+};
+
+} // namespace logitune
+```
+
+### Step 2: Implement focus tracking
+
+Create `src/core/desktop/GnomeDesktop.cpp`:
+
+```cpp
+#include "desktop/GnomeDesktop.h"
+#include "logging/LogManager.h"
+#include <QDBusConnection>
+#include <QDBusMessage>
+#include <QDBusReply>
+#include <QProcessEnvironment>
+#include <QDir>
+#include <QFileInfo>
+#include <QSettings>
+
+namespace logitune {
+
+GnomeDesktop::GnomeDesktop(QObject *parent)
+    : IDesktopIntegration(parent)
+{
+}
+
+void GnomeDesktop::start()
+{
+    // Check if GNOME Shell is running
+    QDBusInterface shell(
+        QStringLiteral("org.gnome.Shell"),
+        QStringLiteral("/org/gnome/Shell"),
+        QStringLiteral("org.gnome.Shell"),
+        QDBusConnection::sessionBus());
+
+    m_available = shell.isValid();
+    if (!m_available) return;
+
+    // GNOME Shell Extension approach:
+    // Install a GNOME Shell extension that sends D-Bus signals on focus change.
+    // Alternatively, use the GNOME Shell Eval API (deprecated) or
+    // the org.gnome.Shell.Introspect API for window tracking.
+
+    // For now, use polling via org.gnome.Shell.Introspect
+    m_pollTimer = new QTimer(this);
+    m_pollTimer->setInterval(500);
+    connect(m_pollTimer, &QTimer::timeout, this, &GnomeDesktop::pollActiveWindow);
+    m_pollTimer->start();
+}
+
+bool GnomeDesktop::available() const
+{
+    return m_available;
+}
+
+QString GnomeDesktop::desktopName() const
+{
+    return QStringLiteral("GNOME");
+}
+
+QStringList GnomeDesktop::detectedCompositors() const
+{
+    QStringList compositors;
+    const QString desktop = QProcessEnvironment::systemEnvironment()
+                                .value(QStringLiteral("XDG_CURRENT_DESKTOP"));
+    if (desktop.contains(QStringLiteral("GNOME"), Qt::CaseInsensitive))
+        compositors << QStringLiteral("Mutter");
+    return compositors;
+}
+
+void GnomeDesktop::pollActiveWindow()
+{
+    // Option 1: org.gnome.Shell.Introspect.GetWindows
+    // Option 2: GNOME Shell extension with D-Bus callback
+    // Option 3: wlr-foreign-toplevel-management (wlroots-based compositors)
+
+    // This is the scaffold — the actual implementation depends on
+    // which GNOME API is available and stable.
+
+    // Example using Shell.Introspect:
+    QDBusMessage msg = QDBusMessage::createMethodCall(
+        QStringLiteral("org.gnome.Shell"),
+        QStringLiteral("/org/gnome/Shell/Introspect"),
+        QStringLiteral("org.gnome.Shell.Introspect"),
+        QStringLiteral("GetWindows"));
+
+    QDBusReply<QVariantMap> reply = QDBusConnection::sessionBus().call(msg);
+    if (!reply.isValid()) return;
+
+    // Find the focused window and extract its app-id
+    // ... parse reply.value() ...
+
+    // QString appId = ...;
+    // if (appId != m_lastAppId) {
+    //     m_lastAppId = appId;
+    //     emit activeWindowChanged(appId, title);
+    // }
+}
+
+void GnomeDesktop::blockGlobalShortcuts(bool block)
+{
+    // GNOME doesn't have a direct D-Bus API for this.
+    // Options:
+    // 1. Use a GNOME Shell extension
+    // 2. Temporarily grab the keyboard via libinput
+    // 3. Leave unimplemented (keystroke capture will work but may trigger shortcuts)
+    Q_UNUSED(block)
+}
+
+QVariantList GnomeDesktop::runningApplications() const
+{
+    // Same approach as KDeDesktop — scan .desktop files
+    // The KDeDesktop implementation is desktop-agnostic for this method
+    // Consider extracting it to a shared utility
+    QVariantList result;
+    // ... scan /usr/share/applications/*.desktop ...
+    return result;
+}
+
+} // namespace logitune
+```
+
+### Step 3: Focus Tracking Strategies
+
+Different DEs offer different APIs for tracking window focus:
+
+```mermaid
+graph TB
+    subgraph "KDE Plasma"
+        KWin[KWin Script API<br/>workspace.windowActivated]
+        KWinDBus[D-Bus callback<br/>org.kde.KWin /Scripting]
+    end
+
+    subgraph "GNOME"
+        Introspect[Shell.Introspect<br/>GetWindows]
+        Extension[GNOME Shell Extension<br/>global.display.connect<br/>'notify::focus-window']
+    end
+
+    subgraph "Hyprland"
+        IPC[Hyprland IPC<br/>hyprctl activewindow]
+        Socket[Unix socket events<br/>activewindow>>]
+    end
+
+    subgraph "Sway / wlroots"
+        WLR[wlr-foreign-toplevel<br/>management protocol]
+        SwayIPC[Sway IPC<br/>swaymsg -t subscribe]
+    end
+
+    subgraph "X11 Generic"
+        Xprop[_NET_ACTIVE_WINDOW<br/>property change notification]
+        XLib[XSelectInput on root<br/>PropertyChangeMask]
+    end
+```
+
+| DE | Recommended Approach | Latency | Reliability |
+|----|---------------------|---------|-------------|
+| KDE Plasma 6 | KWin script D-Bus callback | <10ms | High (event-driven) |
+| GNOME 45+ | Shell.Introspect polling or Extension | ~500ms (poll) / <10ms (extension) | Medium / High |
+| Hyprland | IPC socket subscription | <10ms | High |
+| Sway | IPC subscription | <10ms | High |
+| X11 (any) | `_NET_ACTIVE_WINDOW` via XCB | <10ms | High |
+
+### Step 4: Window Identity Resolution
+
+The trickiest part of desktop integration is resolving a window to a stable application ID. Different compositors report different identifiers:
+
+| Compositor | Identifier | Example |
+|-----------|------------|---------|
+| KWin (Wayland) | `desktopFileName` or `resourceClass` | `org.kde.dolphin` or `dolphin` |
+| Mutter (GNOME) | `app-id` (from Wayland) | `org.gnome.Nautilus` |
+| Hyprland | `class` | `firefox` |
+| X11 | `WM_CLASS` (instance, class) | `Navigator`, `firefox` |
+
+Logitune normalizes all of these to a `.desktop` file baseName. The `resolveDesktopFile()` method in `KDeDesktop` does this by:
+
+1. Checking `desktopFileName` if the compositor provides it directly
+2. Searching `.desktop` files for a matching filename component
+3. Searching `.desktop` files for a matching `StartupWMClass`
+4. Falling back to the raw identifier
+
+This logic is currently in `KDeDesktop` but is DE-agnostic. Consider extracting it to a shared utility if adding multiple DEs.
+
+### Step 5: Register in AppController
+
+Edit `src/app/AppController.cpp` to select the right desktop integration:
+
+```cpp
+AppController::AppController(IDesktopIntegration *desktop, IInputInjector *injector, QObject *parent)
+    : QObject(parent)
+    , m_deviceManager(&m_registry)
+    , m_actionExecutor(nullptr)
+{
+    if (desktop) {
+        m_desktop = desktop;
+    } else {
+        // Detect desktop environment and create appropriate integration
+        QString xdgDesktop = QProcessEnvironment::systemEnvironment()
+                                 .value("XDG_CURRENT_DESKTOP");
+        if (xdgDesktop.contains("KDE", Qt::CaseInsensitive)) {
+            m_ownedDesktop = std::make_unique<KDeDesktop>();
+        } else if (xdgDesktop.contains("GNOME", Qt::CaseInsensitive)) {
+            m_ownedDesktop = std::make_unique<GnomeDesktop>();
+        } else {
+            m_ownedDesktop = std::make_unique<GenericDesktop>();
+        }
+        m_desktop = m_ownedDesktop.get();
+    }
+    // ... rest unchanged
+}
+```
+
+### Step 6: Add to CMakeLists.txt
+
+Edit `src/core/CMakeLists.txt`:
+
+```cmake
+target_sources(logitune-core PRIVATE
+    # ... existing files ...
+    desktop/KDeDesktop.cpp
+    desktop/GenericDesktop.cpp
+    desktop/GnomeDesktop.cpp    # Add this
+)
+```
+
+### Step 7: Testing
+
+The mock infrastructure is already DE-agnostic. `MockDesktop` implements `IDesktopIntegration` and provides `simulateFocus()` to trigger focus changes in tests. No DE-specific test infrastructure is needed.
+
+However, you should add a test for the detection logic:
+
+```cpp
+TEST(DesktopDetectionTest, GnomeDetected) {
+    // Set XDG_CURRENT_DESKTOP to GNOME and verify GnomeDesktop is created
+    // (This may require environment variable manipulation)
+}
+```
+
+### Extracting Shared Utilities
+
+If you are adding a second DE implementation, consider extracting these shared utilities:
+
+1. **`resolveDesktopFile()`** — `.desktop` file lookup by resourceClass/StartupWMClass
+2. **`runningApplications()`** — scanning `.desktop` files for GUI applications
+3. **Desktop directory list** — `/usr/share/applications`, Flatpak paths, etc.
+
+These could live in a `DesktopUtils` static class or be moved to the `GenericDesktop` base class.
+
+## Outline: Adding Hyprland Support
+
+Hyprland is a wlroots-based compositor with a powerful IPC system. Here is a brief outline:
+
+1. **Class**: `HyprlandDesktop` extending `IDesktopIntegration`
+2. **Focus tracking**: Subscribe to Hyprland IPC socket (`$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock`) for `activewindow>>` events
+3. **Window identity**: Hyprland reports the `class` property, equivalent to X11 `WM_CLASS`. Run through `resolveDesktopFile()`.
+4. **blockGlobalShortcuts**: Use `hyprctl keyword bind` to temporarily unbind all shortcuts, or use `hyprctl dispatch submap` to switch to an empty submap
+5. **Detection**: Check for `HYPRLAND_INSTANCE_SIGNATURE` environment variable
+
+The Hyprland IPC approach would be event-driven (no polling), making it more efficient than the GNOME polling fallback.

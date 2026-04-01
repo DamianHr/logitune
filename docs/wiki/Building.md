@@ -1,0 +1,296 @@
+# Building
+
+## Prerequisites
+
+| Dependency | Version | Notes |
+|-----------|---------|-------|
+| CMake | >= 3.22 | Build system |
+| Ninja | any | Recommended generator (make works too) |
+| C++ compiler | C++20 | GCC 12+ or Clang 15+ |
+| Qt 6 | >= 6.4 | Core, Quick, Svg, DBus, Widgets, Concurrent, Test, QuickTest |
+| libudev | any | Device discovery via udev/hidraw |
+| Google Test | any | Test framework (Ubuntu ships source only — needs manual build) |
+| pkg-config | any | Finds libudev |
+
+### Qt 6 Modules
+
+The project uses these Qt 6 modules (from `CMakeLists.txt`):
+
+```cmake
+find_package(Qt6 REQUIRED COMPONENTS Core Quick Svg DBus Widgets Concurrent Test QuickTest)
+```
+
+Plus these QML modules at runtime:
+
+- `qml6-module-qtquick`, `qml6-module-qtquick-controls`, `qml6-module-qtquick-layouts`
+- `qml6-module-qtquick-window`, `qml6-module-qtquick-templates`
+- `qml6-module-qtquick-dialogs`, `qml6-module-qt5compat-graphicaleffects`
+- `qml6-module-qttest` (for QML tests)
+
+### Ubuntu 24.04
+
+```bash
+sudo apt-get install -y \
+    build-essential cmake ninja-build pkg-config \
+    qt6-base-dev qt6-declarative-dev qt6-svg-dev \
+    qt6-tools-dev qt6-tools-dev-tools qt6-l10n-tools \
+    qml6-module-qtquick qml6-module-qtquick-controls \
+    qml6-module-qtquick-layouts qml6-module-qtquick-window \
+    qml6-module-qtquick-templates qml6-module-qtqml-workerscript \
+    qml6-module-qtquick-dialogs qml6-module-qt5compat-graphicaleffects \
+    qt6-qpa-plugins libqt6opengl6-dev libqt6svg6-dev \
+    libqt6dbus6 libqt6widgets6 libxkbcommon-dev \
+    qml6-module-qttest libudev-dev libgtest-dev
+
+# Build and install GTest (Ubuntu ships source only)
+cd /usr/src/googletest && sudo cmake -B build && sudo cmake --build build && sudo cmake --install build
+```
+
+### Arch Linux
+
+```bash
+sudo pacman -S cmake ninja qt6-base qt6-declarative qt6-svg qt6-tools \
+    qt6-5compat gtest libudev0-shim pkgconf
+```
+
+## Build from Source
+
+```bash
+git clone https://github.com/logitune/logitune.git
+cd logitune
+
+# Configure + build
+make build
+
+# Run with debug logging
+make run
+```
+
+The `make build` target runs:
+
+```bash
+cmake -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -Wno-dev
+cmake --build build -j$(nproc)
+```
+
+## Build Commands
+
+The Makefile provides these targets:
+
+| Command | Description |
+|---------|-------------|
+| `make build` | Build the project (Debug mode) |
+| `make run` | Build and run the app with `--debug` (host only) |
+| `make test` | Run C++ unit/integration tests |
+| `make test-qml` | Run QML component tests |
+| `make test-tray` | Run tray manager tests |
+| `make test-all` | Run all test tiers |
+| `make flatpak-setup` | Install Flatpak SDK (first time, ~2GB) |
+| `make flatpak` | Build and install Flatpak |
+| `make release` | Version bump, tag, Flatpak, GitHub release |
+| `make setup-hooks` | Install git pre-push hook |
+| `make clean` | Remove build artifacts |
+| `make help` | Show all targets |
+
+## CMake Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `BUILD_TESTING` | `ON` | Build test binaries |
+| `BUILD_HW_TESTING` | `OFF` | Build hardware integration tests (requires connected device) |
+| `CMAKE_BUILD_TYPE` | `Debug` | `Debug` or `Release` |
+
+## Project Structure
+
+```
+logitune/
+├── CMakeLists.txt              # Root CMake — project, Qt find, subdirs
+├── Makefile                    # Developer convenience targets
+├── com.logitune.Logitune.yml   # Flatpak manifest
+├── data/
+│   ├── 71-logitune.rules       # udev rules for hidraw + uinput
+│   ├── com.logitune.Logitune.desktop
+│   ├── com.logitune.Logitune.metainfo.xml
+│   └── com.logitune.Logitune.svg
+├── src/
+│   ├── core/                   # Static library: logitune-core
+│   │   ├── CMakeLists.txt
+│   │   ├── DeviceManager.cpp/h # Device lifecycle, HID++ orchestration
+│   │   ├── DeviceRegistry.cpp/h
+│   │   ├── ProfileEngine.cpp/h # Profile CRUD, app bindings, cache
+│   │   ├── ActionExecutor.cpp/h
+│   │   ├── ButtonAction.h
+│   │   ├── hidpp/              # HID++ protocol layer
+│   │   │   ├── HidppTypes.h    # Report, FeatureId, ErrorCode
+│   │   │   ├── HidrawDevice.h  # Raw hidraw fd wrapper
+│   │   │   ├── Transport.h     # Send/receive with timeout + retry
+│   │   │   ├── FeatureDispatcher.h  # Feature table, call(), callAsync()
+│   │   │   ├── CommandQueue.h  # Paced sequential command sending
+│   │   │   └── features/       # Per-feature param builders + parsers
+│   │   ├── devices/
+│   │   │   └── MxMaster3sDescriptor.cpp/h
+│   │   ├── interfaces/
+│   │   │   ├── IDevice.h       # Device descriptor interface
+│   │   │   ├── IDesktopIntegration.h
+│   │   │   ├── IInputInjector.h
+│   │   │   └── ITransport.h
+│   │   ├── desktop/
+│   │   │   ├── KDeDesktop.cpp/h    # KDE/KWin integration
+│   │   │   └── GenericDesktop.cpp/h
+│   │   ├── input/
+│   │   │   └── UinputInjector.cpp/h
+│   │   └── logging/
+│   │       ├── LogManager.cpp/h
+│   │       └── CrashHandler.cpp/h
+│   └── app/                    # Static library: logitune-app-lib + executable
+│       ├── CMakeLists.txt
+│       ├── main.cpp            # Entry point, QML engine, tray
+│       ├── AppController.cpp/h # Main orchestrator
+│       ├── TrayManager.cpp/h
+│       ├── models/
+│       │   ├── DeviceModel.h   # QML-facing device state
+│       │   ├── ButtonModel.h   # QAbstractListModel for buttons
+│       │   ├── ActionModel.h   # Available actions catalog
+│       │   └── ProfileModel.h  # Profile tabs
+│       ├── dialogs/
+│       │   ├── CrashReportDialog.cpp/h
+│       │   └── GitHubIssueBuilder.cpp/h
+│       └── qml/
+│           ├── Main.qml
+│           ├── Theme.qml       # Singleton with design tokens
+│           ├── HomeView.qml
+│           ├── DeviceView.qml
+│           ├── pages/          # PointScrollPage, ButtonsPage, EasySwitchPage, SettingsPage
+│           ├── components/     # SideNav, BatteryChip, DeviceRender, etc.
+│           └── assets/         # Device images (PNG)
+├── tests/
+│   ├── CMakeLists.txt
+│   ├── test_main.cpp           # GTest main with QCoreApplication
+│   ├── helpers/
+│   │   ├── TestFixtures.h      # ProfileFixture, ensureApp()
+│   │   └── AppControllerFixture.h  # Full integration test fixture
+│   ├── mocks/
+│   │   ├── MockDesktop.h/cpp
+│   │   ├── MockTransport.h/cpp
+│   │   ├── MockInjector.h/cpp
+│   │   └── MockDevice.h
+│   ├── test_*.cpp              # C++ test files
+│   ├── qml/
+│   │   ├── tst_*.qml           # QML component tests
+│   │   └── tst_qml_main.cpp
+│   └── hw/
+│       ├── HardwareFixture.h
+│       ├── hw_test_main.cpp
+│       └── test_hw_*.cpp       # Hardware integration tests
+├── scripts/
+│   ├── pre-push                # Git hook: run all tests before push
+│   └── release.sh
+└── .github/workflows/
+    ├── ci.yml                  # Build + test on push/PR
+    └── release.yml             # Flatpak bundle on tag push
+```
+
+## Flatpak Build
+
+### First-Time Setup
+
+```bash
+make flatpak-setup
+```
+
+This installs the Flathub remote and the KDE Platform/SDK 6.10 runtime (~2GB download).
+
+### Build
+
+On host (builds and installs locally):
+
+```bash
+make flatpak
+```
+
+In devcontainer (build only — no user session):
+
+```bash
+make flatpak
+```
+
+The Flatpak manifest (`com.logitune.Logitune.yml`) configures:
+
+- **Runtime**: `org.kde.Platform` 6.10
+- **D-Bus**: talks to `org.kde.KWin` and `org.kde.kglobalaccel`, owns `com.logitune.app`
+- **Device access**: `--device=all` for hidraw
+- **Host filesystem**: Read-only access to host `.desktop` files for the app profile picker
+- **Config persistence**: `~/.config/Logitune` and `~/.local/share/Logitune` shared between host and sandbox
+
+## Devcontainer / GitHub Codespaces
+
+The repository includes a devcontainer configuration for one-click development in VS Code or GitHub Codespaces.
+
+### What's Included
+
+The Dockerfile (`/.devcontainer/Dockerfile`) builds an Ubuntu 24.04 container with:
+
+- All build dependencies (Qt 6, CMake, Ninja, GTest, libudev)
+- Development tools (clangd, gdb, fish shell, bat, eza, ripgrep, fzf)
+- Flatpak builder
+- Nerd Font for terminal icons
+- `QT_QPA_PLATFORM=offscreen` for headless testing
+
+### VS Code Extensions
+
+The devcontainer auto-installs:
+
+- `llvm-vs-code-extensions.vscode-clangd` — C++ language server
+- `ms-vscode.cmake-tools` — CMake integration
+- `theqtcompany.qt`, `theqtcompany.qt-qml`, `theqtcompany.qt-cpp` — Qt/QML support
+- `vscode-icons-team.vscode-icons` — file icons
+
+### Post-Create
+
+On container creation, `postCreateCommand` runs:
+
+```bash
+make setup-hooks
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+cmake --build build -j$(nproc)
+```
+
+So the project is fully built and ready to test immediately after the container starts.
+
+### Limitations
+
+The devcontainer runs headless (`QT_QPA_PLATFORM=offscreen`), so:
+
+- All tests run fine (C++, QML, tray)
+- You cannot run the GUI application visually
+- No hidraw access (no physical device tests)
+
+## CI Pipeline
+
+The CI workflow (`.github/workflows/ci.yml`) runs on every push to `master` and every pull request:
+
+```mermaid
+graph LR
+    A[Push / PR] --> B[Install Dependencies]
+    B --> C[Configure CMake]
+    C --> D[Build]
+    D --> E[C++ Tests]
+    D --> F[Tray Tests]
+    D --> G[QML Tests]
+    E --> H{All Pass?}
+    F --> H
+    G --> H
+```
+
+The release workflow (`.github/workflows/release.yml`) triggers on version tags (`v*`):
+
+```mermaid
+graph LR
+    A[Tag Push v*] --> B[Install Flatpak Builder]
+    B --> C[Install KDE SDK 6.10]
+    C --> D[flatpak-builder]
+    D --> E[Create Bundle]
+    E --> F[GitHub Release]
+```
+
+It builds a `.flatpak` bundle and creates a GitHub Release with auto-generated release notes.
