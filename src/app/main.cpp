@@ -4,7 +4,6 @@
 #include <QSettings>
 #include <signal.h>
 #include <QQmlApplicationEngine>
-#include <QQmlContext>
 #include <QQuickWindow>
 #include <QQuickImageProvider>
 #include <QIcon>
@@ -107,19 +106,10 @@ int main(int argc, char *argv[])
     };
     engine.addImageProvider(QStringLiteral("icon"), new IconProvider);
 
-#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     qmlRegisterSingletonInstance("Logitune", 1, 0, "DeviceModel",  controller.deviceModel());
     qmlRegisterSingletonInstance("Logitune", 1, 0, "ButtonModel",  controller.buttonModel());
     qmlRegisterSingletonInstance("Logitune", 1, 0, "ActionModel",  controller.actionModel());
     qmlRegisterSingletonInstance("Logitune", 1, 0, "ProfileModel", controller.profileModel());
-#else
-    // Qt 6.4: static plugin owns the module, can't register singletons into it.
-    // Use context properties instead — available globally in QML.
-    engine.rootContext()->setContextProperty("DeviceModel",  controller.deviceModel());
-    engine.rootContext()->setContextProperty("ButtonModel",  controller.buttonModel());
-    engine.rootContext()->setContextProperty("ActionModel",  controller.actionModel());
-    engine.rootContext()->setContextProperty("ProfileModel", controller.profileModel());
-#endif
 
     engine.load(QUrl(QStringLiteral("qrc:/Logitune/qml/Main.qml")));
 
@@ -129,16 +119,8 @@ int main(int argc, char *argv[])
     }
 
     // Set theme
-#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     if (auto *theme = engine.singletonInstance<QObject*>("Logitune", "Theme"))
         theme->setProperty("dark", isDark);
-#else
-    // Qt 6.4 fallback: find Theme via root context
-    for (auto *obj : engine.rootObjects()) {
-        auto *theme = obj->findChild<QObject*>("themeObject");
-        if (theme) { theme->setProperty("dark", isDark); break; }
-    }
-#endif
 
     controller.startMonitoring();
 
