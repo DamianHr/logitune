@@ -38,19 +38,14 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    // Parse --debug flag
-    bool debugMode = app.arguments().contains("--debug");
-
-    // Initialize logging (before anything else)
+    // Initialize logging — enabled by default, user can disable in Settings
     auto &logMgr = logitune::LogManager::instance();
-    logMgr.init(debugMode);
+    logMgr.init(true);
 
-    // Restore logging state from settings (unless --debug overrides)
-    if (!debugMode) {
-        QSettings settings;
-        if (settings.value("logging/enabled", false).toBool())
-            logMgr.setLoggingEnabled(true);
-    }
+    // Respect user's setting if they explicitly disabled logging
+    QSettings settings;
+    if (settings.contains("logging/enabled") && !settings.value("logging/enabled").toBool())
+        logMgr.setLoggingEnabled(false);
 
     qCInfo(lcApp) << "Application started, PID" << QCoreApplication::applicationPid();
 
