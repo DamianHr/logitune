@@ -381,6 +381,7 @@ void AppController::applyProfileToHardware(const Profile &p)
         if (i == 7) continue;
         const auto &ctrl = controls[i];
         if (ctrl.controlId == 0) continue; // virtual entry -- no ReprogControls divert
+        if (!ctrl.configurable) continue;  // non-divertable (e.g. left/right click)
         const auto &ba = (static_cast<std::size_t>(i) < p.buttons.size())
             ? p.buttons[static_cast<std::size_t>(i)]
             : ButtonAction{ButtonAction::Default, {}};
