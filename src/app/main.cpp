@@ -26,6 +26,12 @@ int main(int argc, char *argv[])
     // Ignore SIGPIPE — hidraw writes to wrong interface cause EPIPE
     signal(SIGPIPE, SIG_IGN);
 
+    // Handle SIGTERM/SIGINT gracefully so aboutToQuit fires and the lock
+    // file is cleaned up (prevents false "crashed" dialog on next launch).
+    auto termHandler = [](int) { QCoreApplication::quit(); };
+    signal(SIGTERM, termHandler);
+    signal(SIGINT, termHandler);
+
     // Prevent dconf hang on GNOME — Qt's platform theme triggers dconf
     // initialization which deadlocks on some D-Bus session configurations.
     // Memory backend is safe: we handle theming ourselves via Theme.qml.

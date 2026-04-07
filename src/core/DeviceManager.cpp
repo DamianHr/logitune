@@ -969,14 +969,17 @@ const IDevice* DeviceManager::activeDevice() const { return m_activeDevice; }
 
 void DeviceManager::setDPI(int value)
 {
-    if (!m_connected || !m_features || !m_commandQueue)
+    if (!m_connected || !m_features || !m_commandQueue) {
+        qCDebug(lcDevice) << "setDPI: skipped (not connected)";
         return;
+    }
     if (!m_features->hasFeature(hidpp::FeatureId::AdjustableDPI))
         return;
 
     value = qBound(m_minDPI, value, m_maxDPI);
     value = (value / m_dpiStep) * m_dpiStep;
 
+    qCDebug(lcDevice) << "setDPI:" << value << "(was" << m_currentDPI << ") queue=" << m_commandQueue->pending();
     m_currentDPI = value;
     emit currentDPIChanged();
 
@@ -1053,6 +1056,12 @@ int DeviceManager::hostCount() const { return m_hostCount; }
 bool DeviceManager::isHostPaired(int host) const {
     if (host < 0 || host >= m_hostPaired.size()) return false;
     return m_hostPaired[host];
+}
+
+void DeviceManager::flushCommandQueue()
+{
+    if (m_commandQueue)
+        m_commandQueue->clear();
 }
 
 void DeviceManager::touchResponseTime()

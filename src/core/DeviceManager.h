@@ -71,6 +71,7 @@ public:
     Q_INVOKABLE void setScrollConfig(bool hiRes, bool invert);
     Q_INVOKABLE void divertButton(uint16_t controlId, bool divert, bool rawXY = false);
     Q_INVOKABLE void setThumbWheelMode(const QString &mode, bool invert = false);
+    void flushCommandQueue();   // discard pending commands (call before applying new profile)
     void touchResponseTime();  // prevent false sleep/wake detection during intentional writes
     bool scrollHiRes() const;
     bool scrollInvert() const;

@@ -334,6 +334,17 @@ void AppController::restoreButtonModelFromProfile(const Profile &p)
             aType = QStringLiteral("app-launch");
             aName = buttonActionToName(ba);
             break;
+        case ButtonAction::Media: {
+            aType = QStringLiteral("media-controls");
+            static const QHash<QString, QString> kMediaNames = {
+                {"Play", "Play/Pause"}, {"Next", "Next track"},
+                {"Previous", "Previous track"}, {"Stop", "Stop"},
+                {"Mute", "Mute"}, {"VolumeUp", "Volume up"},
+                {"VolumeDown", "Volume down"},
+            };
+            aName = kMediaNames.value(ba.payload, ba.payload);
+            break;
+        }
         default:
             aType = QStringLiteral("default");
             aName = ctrl.defaultName;
@@ -367,6 +378,9 @@ void AppController::restoreButtonModelFromProfile(const Profile &p)
 void AppController::applyProfileToHardware(const Profile &p)
 {
     if (!m_currentDevice) return;
+    // Discard any pending commands from a previous profile switch so they
+    // don't interleave with (or delay) commands for the new profile.
+    m_deviceManager.flushCommandQueue();
     // Reset thumb wheel accumulator to prevent stale rotation from the
     // previous profile's mode from bleeding into the new mode's actions.
     m_thumbAccum = 0;
@@ -375,6 +389,15 @@ void AppController::applyProfileToHardware(const Profile &p)
     m_deviceManager.touchResponseTime();
     const auto controls = m_currentDevice->controls();
     const int buttonCount = controls.size();
+
+    // Apply DPI, SmartShift, scroll, thumb wheel FIRST — these are the most
+    // user-visible settings and must survive rapid focus switches.  Button
+    // diversions are queued after; they're less time-critical.
+    m_deviceManager.setDPI(p.dpi);
+    m_deviceManager.setSmartShift(p.smartShiftEnabled, p.smartShiftThreshold);
+    m_deviceManager.setScrollConfig(p.hiResScroll,
+                                    p.scrollDirection == QStringLiteral("natural"));
+    m_deviceManager.setThumbWheelMode(p.thumbWheelMode, p.thumbWheelInvert);
 
     // Apply button diversions to hardware via HID++ (skip button 7 = thumb wheel)
     for (int i = 0; i < buttonCount; ++i) {
@@ -391,13 +414,6 @@ void AppController::applyProfileToHardware(const Profile &p)
             qCDebug(lcApp) << "diverting button" << i << "CID" << Qt::hex << ctrl.controlId;
         m_deviceManager.divertButton(ctrl.controlId, needsDivert, needsRawXY);
     }
-
-    // Apply DPI, SmartShift, scroll, thumb wheel
-    m_deviceManager.setDPI(p.dpi);
-    m_deviceManager.setSmartShift(p.smartShiftEnabled, p.smartShiftThreshold);
-    m_deviceManager.setScrollConfig(p.hiResScroll,
-                                    p.scrollDirection == QStringLiteral("natural"));
-    m_deviceManager.setThumbWheelMode(p.thumbWheelMode, p.thumbWheelInvert);
 }
 
 void AppController::saveCurrentProfile()
