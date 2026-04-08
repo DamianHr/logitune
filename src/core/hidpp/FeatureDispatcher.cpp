@@ -7,6 +7,7 @@ namespace logitune::hidpp {
 static constexpr FeatureId kKnownFeatures[] = {
     FeatureId::Root,
     FeatureId::FeatureSet,
+    FeatureId::DeviceInfo,
     FeatureId::DeviceName,
     FeatureId::BatteryUnified,
     FeatureId::ChangeHost,

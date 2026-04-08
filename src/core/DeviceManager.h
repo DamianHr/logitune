@@ -82,6 +82,7 @@ public:
 
     // Device identity (available after connect)
     QString deviceSerial() const;
+    QString firmwareVersion() const;
     uint16_t deviceVid() const;
     uint16_t devicePid() const;
 
@@ -161,6 +162,7 @@ private:
     bool m_connected = false;
     QString m_deviceName;
     QString m_deviceSerial;
+    QString m_firmwareVersion;
     uint16_t m_deviceVid = 0;
     uint16_t m_devicePid = 0;
     int m_batteryLevel = 0;

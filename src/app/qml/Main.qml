@@ -183,9 +183,11 @@ ApplicationWindow {
         id: homeViewComponent
         HomeView {
             onDeviceClicked: mainStack.push(deviceViewComponent)
+            onSettingsClicked: mainStack.push(appSettingsComponent)
         }
     }
     Component { id: deviceViewComponent; DeviceView {} }
+    Component { id: appSettingsComponent; AppSettingsView {} }
 
     // Permission error overlay
     Rectangle {

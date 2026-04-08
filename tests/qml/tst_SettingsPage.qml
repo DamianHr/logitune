@@ -17,18 +17,16 @@ Item {
         }
 
         function test_darkModeToggleActuallyChangesTheme() {
+            // Theme singleton test — independent of SettingsPage
             Theme.dark = false
-            waitForRendering(settings)
             verify(Qt.colorEqual(Theme.accent, "#814EFA"), "light mode accent must be purple")
 
             Theme.dark = true
-            waitForRendering(settings)
             compare(Theme.dark, true, "Theme must be dark after toggle")
             verify(Qt.colorEqual(Theme.accent, "#00EAD0"), "dark mode accent must be teal")
         }
 
         function test_loggingToggleReflectsModelState() {
-            waitForRendering(settings)
             var enabled = SettingsModel.loggingEnabled
             compare(typeof enabled, "boolean", "loggingEnabled must be boolean")
         }

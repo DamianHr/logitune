@@ -232,6 +232,13 @@ QString DeviceModel::deviceSerial() const
     return QStringLiteral("Unknown");
 }
 
+QString DeviceModel::firmwareVersion() const
+{
+    if (m_dm && !m_dm->firmwareVersion().isEmpty())
+        return m_dm->firmwareVersion();
+    return QStringLiteral("Unknown");
+}
+
 int DeviceModel::activeSlot() const
 {
     if (!m_dm || !m_dm->deviceConnected())

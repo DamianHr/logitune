@@ -22,6 +22,7 @@ constexpr uint16_t kPidMxMaster3s    = 0xb034;
 enum class FeatureId : uint16_t {
     Root            = 0x0000,
     FeatureSet      = 0x0001,
+    DeviceInfo      = 0x0003,
     DeviceName      = 0x0005,
     BatteryUnified  = 0x1004,
     ChangeHost      = 0x1814,

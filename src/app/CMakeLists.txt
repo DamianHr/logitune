@@ -48,6 +48,7 @@ qt_add_qml_module(logitune-app-lib
         qml/Main.qml
         qml/HomeView.qml
         qml/DeviceView.qml
+        qml/AppSettingsView.qml
         qml/components/SideNav.qml
         qml/components/BatteryChip.qml
         qml/components/LogituneSlider.qml

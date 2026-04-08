@@ -41,6 +41,7 @@ class DeviceModel : public QObject {
     Q_PROPERTY(QVariantList controlDescriptors READ controlDescriptors NOTIFY deviceConnectedChanged)
     Q_PROPERTY(int easySwitchSlots READ easySwitchSlots NOTIFY deviceConnectedChanged)
     Q_PROPERTY(QString deviceSerial READ deviceSerial NOTIFY deviceConnectedChanged)
+    Q_PROPERTY(QString firmwareVersion READ firmwareVersion NOTIFY deviceConnectedChanged)
     Q_PROPERTY(int activeSlot READ activeSlot NOTIFY deviceConnectedChanged)
 
 public:
@@ -76,6 +77,7 @@ public:
     QVariantList controlDescriptors() const;
     int easySwitchSlots() const;
     QString deviceSerial() const;
+    QString firmwareVersion() const;
     int activeSlot() const;
     Q_INVOKABLE bool isSlotPaired(int slot) const;  // 1-based
 

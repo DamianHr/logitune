@@ -69,14 +69,16 @@ Rectangle {
                         rightMargin: 8
                     }
                     radius: 4
-                    color: sideNav.currentPage === modelData.name
-                           ? Theme.activeTabBg
-                           : (itemHover.hovered && modelData.enabled ? Theme.surface : "transparent")
+                    readonly property bool isActive: sideNav.currentPage === modelData.name
+                    readonly property bool isHovered: itemHover.hovered && modelData.enabled && !isActive
+
+                    color: isActive ? Theme.activeTabBg
+                         : isHovered ? Theme.hoverBg
+                         : Qt.rgba(Theme.hoverBg.r, Theme.hoverBg.g, Theme.hoverBg.b, 0)
                     border.color: "transparent"
                     border.width: 0
 
-                    Behavior on color { ColorAnimation { duration: 200 } }
-                    Behavior on border.color { ColorAnimation { duration: 200 } }
+                    Behavior on color { ColorAnimation { duration: 150 } }
 
                     RowLayout {
                         anchors {
@@ -95,7 +97,9 @@ Rectangle {
                                 anchors.centerIn: parent
                                 text: modelData.icon
                                 font.pixelSize: 18
-                                color: sideNav.currentPage === modelData.name ? Theme.activeTabText : "#555555"
+                                color: pill.isActive ? Theme.activeTabText
+                                     : pill.isHovered ? Theme.text
+                                     : Theme.dark ? "#888888" : "#555555"
                                 Behavior on color { ColorAnimation { duration: 200 } }
                             }
                         }
@@ -105,7 +109,9 @@ Rectangle {
                             font.pixelSize: 13
                             font.letterSpacing: 0.6
                             font.bold: true
-                            color: sideNav.currentPage === modelData.name ? Theme.activeTabText : "#444444"
+                            color: pill.isActive ? Theme.activeTabText
+                                 : pill.isHovered ? Theme.text
+                                 : Theme.dark ? "#888888" : "#555555"
                             // Strikethrough when disabled
                             font.strikeout: !modelData.enabled
                             Layout.fillWidth: true

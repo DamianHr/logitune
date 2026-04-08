@@ -29,6 +29,7 @@ public:
 
     std::optional<uint8_t> featureIndex(FeatureId id) const;
     bool hasFeature(FeatureId id) const;
+    void setFeatureIndex(FeatureId id, uint8_t index) { m_featureMap[id] = index; }
 
     // Send a feature call: resolves FeatureId to index, builds Report, sends via transport
     std::optional<Report> call(Transport *transport, uint8_t deviceIndex,

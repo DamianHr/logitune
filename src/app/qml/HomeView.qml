@@ -6,6 +6,7 @@ import Logitune
 Item {
     id: root
     signal deviceClicked()
+    signal settingsClicked()
 
     // ── Top bar — 18.5vh max 144px ──────────────────────────────────────────
     RowLayout {
@@ -38,33 +39,19 @@ Item {
         Item { Layout.fillWidth: true }
 
         Text {
-            text: "+ ADD DEVICE"
-            font.pixelSize: 13
-            font.letterSpacing: 0.5
-            color: "#CCCCCC"
-
-            ToolTip.visible: addDeviceHover.hovered
-            ToolTip.text: "Coming soon"
-            ToolTip.delay: 400
-
-            HoverHandler { id: addDeviceHover }
-        }
-
-        Text {
-            text: "|"
-            color: Theme.border
-            font.pixelSize: 16
-        }
-
-        Text {
             id: settingsGear
             text: "\u2699"
             font.pixelSize: 20
-            color: settingsHover.hovered ? "#555555" : "#999999"
+            color: settingsHover.hovered ? Theme.accent : "#999999"
 
             HoverHandler { id: settingsHover }
-
             Behavior on color { ColorAnimation { duration: 150 } }
+
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.settingsClicked()
+            }
         }
 
         Item { width: 24 }  // right margin

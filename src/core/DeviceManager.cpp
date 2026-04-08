@@ -11,6 +11,7 @@
 #include "logging/LogManager.h"
 
 #include <QDateTime>
+#include <QThread>
 #include <QFile>
 #include <QHash>
 #include <QSocketNotifier>
@@ -526,9 +527,91 @@ void DeviceManager::enumerateAndSetup()
     if (name.isEmpty())
         name = QStringLiteral("Logitech Device");
 
-    // Stable device identifier from name hash (same across Bolt/BT/USB)
-    QString serial = QString::number(qHash(name), 16);
-    qCDebug(lcDevice) << "device id:" << serial;
+    // Read serial number and firmware version from DeviceInfo (0x0003).
+    // If feature enumeration missed it, try a direct Root query with retry.
+    QString serial;
+    QString firmwareVersion;
+    qCDebug(lcDevice) << "hasDeviceInfo:" << m_features->hasFeature(hidpp::FeatureId::DeviceInfo)
+                      << "hasFeatureSet:" << m_features->hasFeature(hidpp::FeatureId::FeatureSet);
+    if (!m_features->hasFeature(hidpp::FeatureId::DeviceInfo)) {
+        if (m_features->hasFeature(hidpp::FeatureId::FeatureSet)) {
+            // getCount first
+            auto countResp = m_features->call(m_transport.get(), m_deviceIndex,
+                                               hidpp::FeatureId::FeatureSet, 0x00);
+            int count = countResp.has_value() ? countResp->params[0] : 0;
+            qCDebug(lcDevice) << "FeatureSet: device has" << count << "features";
+
+            for (int i = 1; i <= count; ++i) {
+                uint8_t idxParam[1] = {static_cast<uint8_t>(i)};
+                auto resp = m_features->call(m_transport.get(), m_deviceIndex,
+                                              hidpp::FeatureId::FeatureSet, 0x01, idxParam);
+                if (!resp.has_value()) continue;
+                uint16_t fid = (resp->params[0] << 8) | resp->params[1];
+                if (fid == 0x0003) {
+                    m_features->setFeatureIndex(hidpp::FeatureId::DeviceInfo, static_cast<uint8_t>(i));
+                    qCDebug(lcDevice) << "DeviceInfo (0x0003) found at index" << i << "(via FeatureSet)";
+                    break;
+                }
+            }
+        }
+    }
+    if (m_features->hasFeature(hidpp::FeatureId::DeviceInfo)) {
+        // Function 0x00: getEntityCount
+        auto countResp = m_features->call(m_transport.get(), m_deviceIndex,
+                                           hidpp::FeatureId::DeviceInfo, 0x00);
+        int entityCount = countResp.has_value() ? countResp->params[0] : 3;
+
+        // Function 0x01: getFwInfo(entityIdx) — iterate to find main firmware (type 0)
+        // Response: [type, prefix0..2, ver_major, ver_minor, build_hi, build_lo, ...]
+        for (int entity = 0; entity < entityCount; ++entity) {
+            uint8_t entityParam[1] = {static_cast<uint8_t>(entity)};
+            auto fwResp = m_features->call(m_transport.get(), m_deviceIndex,
+                                            hidpp::FeatureId::DeviceInfo, 0x01, entityParam);
+            if (!fwResp.has_value()) continue;
+
+            uint8_t type = fwResp->params[0]; // 0=firmware, 1=bootloader, 2=hardware
+            QString prefix;
+            for (int i = 1; i <= 3; ++i) {
+                char c = static_cast<char>(fwResp->params[i]);
+                if (c) prefix += QChar::fromLatin1(c);
+            }
+            int major = fwResp->params[4];
+            int minor = fwResp->params[5];
+            int build = (fwResp->params[6] << 8) | fwResp->params[7];
+            QString ver = QStringLiteral("%1 %2.%3.%4")
+                .arg(prefix)
+                .arg(major, 2, 16, QChar('0'))
+                .arg(minor, 2, 16, QChar('0'))
+                .arg(build, 4, 16, QChar('0'))
+                .toUpper();
+            qCDebug(lcDevice) << "entity" << entity << "type" << type << "firmware:" << ver;
+
+            if (type == 0) // Main firmware
+                firmwareVersion = ver;
+        }
+
+        // Function 0x02: getDeviceInfo — unit ID (serial), model ID
+        // Response: [unitId0..3, transport0..1, modelId0..5, ...]
+        auto infoResp = m_features->call(m_transport.get(), m_deviceIndex,
+                                          hidpp::FeatureId::DeviceInfo, 0x02);
+        if (infoResp.has_value()) {
+            // Unit ID: ASCII chars in params (feature 0x0003 V4+), read until null
+            QByteArray unitIdBytes;
+            for (int i = 0; i < infoResp->paramLength; ++i) {
+                char c = static_cast<char>(infoResp->params[i]);
+                if (!c) break;
+                unitIdBytes += c;
+            }
+            serial = QString::fromLatin1(unitIdBytes).toUpper();
+            qCDebug(lcDevice) << "serial (unit ID):" << serial;
+        }
+    }
+
+    // Fallback: hash of name for stable profile directory naming
+    if (serial.isEmpty()) {
+        serial = QString::number(qHash(name), 16);
+        qCDebug(lcDevice) << "device id (hash fallback):" << serial;
+    }
 
     // Read battery
     int battLevel = 0;
@@ -695,6 +778,7 @@ void DeviceManager::enumerateAndSetup()
 
     m_deviceName     = name;
     m_deviceSerial   = serial;
+    m_firmwareVersion = firmwareVersion;
     m_deviceVid      = m_device->info().vendorId;
     m_devicePid      = m_device->info().productId;
     m_batteryLevel   = battLevel;
@@ -783,7 +867,8 @@ void DeviceManager::disconnectDevice()
     bool wasConnected = m_connected;
     m_connected      = false;
     m_deviceName     = QString();
-    m_deviceSerial   = QString();
+    m_deviceSerial    = QString();
+    m_firmwareVersion = QString();
     m_deviceVid      = 0;
     m_devicePid      = 0;
     m_batteryLevel   = 0;
@@ -1004,6 +1089,7 @@ hidpp::FeatureDispatcher *DeviceManager::features() const { return m_features.ge
 hidpp::Transport *DeviceManager::transport() const { return m_transport.get(); }
 uint8_t DeviceManager::deviceIndex() const { return m_deviceIndex; }
 QString DeviceManager::deviceSerial() const { return m_deviceSerial; }
+QString DeviceManager::firmwareVersion() const { return m_firmwareVersion; }
 uint16_t DeviceManager::deviceVid() const { return m_deviceVid; }
 uint16_t DeviceManager::devicePid() const { return m_devicePid; }
 const IDevice* DeviceManager::activeDevice() const { return m_activeDevice; }
