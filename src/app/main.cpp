@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
     app.setOrganizationName("Logitune");
     app.setApplicationName("Logitune");
-    app.setApplicationVersion("0.1.0");
+    app.setApplicationVersion(QStringLiteral(PROJECT_VERSION));
     app.setQuitOnLastWindowClosed(false);  // tray icon keeps app alive
     app.setWindowIcon(QIcon(":/Logitune/qml/assets/logitune-icon.svg"));
 
