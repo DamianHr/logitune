@@ -59,6 +59,20 @@ void GnomeDesktop::start()
 
     m_available = true;
     qCInfo(lcFocus) << "GNOME desktop integration started";
+
+    // Check if AppIndicator extension is installed (needed for tray icon)
+    QDBusMessage listMsg = QDBusMessage::createMethodCall(
+        QStringLiteral("org.gnome.Shell.Extensions"),
+        QStringLiteral("/org/gnome/Shell/Extensions"),
+        QStringLiteral("org.gnome.Shell.Extensions"),
+        QStringLiteral("ListExtensions"));
+    QDBusMessage listReply = QDBusConnection::sessionBus().call(listMsg, QDBus::Block, 2000);
+    if (listReply.type() == QDBusMessage::ReplyMessage) {
+        QString allExtensions = listReply.arguments().first().toString();
+        if (!allExtensions.contains(QStringLiteral("appindicatorsupport")))
+            qCWarning(lcFocus) << "AppIndicator extension not installed — tray icon will not be visible."
+                               << "Install from: https://extensions.gnome.org/extension/615/appindicator-support/";
+    }
 }
 
 bool GnomeDesktop::ensureExtensionInstalled()
