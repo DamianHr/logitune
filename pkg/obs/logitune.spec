@@ -8,16 +8,17 @@ Source0:        logitune-%{version}.tar.xz
 
 BuildRequires:  cmake >= 3.22
 BuildRequires:  gcc-c++
-BuildRequires:  ninja-build
 
 # Qt 6
 %if 0%{?suse_version}
+BuildRequires:  ninja
 BuildRequires:  qt6-base-devel
 BuildRequires:  qt6-declarative-devel
 BuildRequires:  qt6-svg-devel
 BuildRequires:  qt6-shadertools-devel
 BuildRequires:  systemd-devel
 %else
+BuildRequires:  ninja-build
 BuildRequires:  qt6-qtbase-devel
 BuildRequires:  qt6-qtdeclarative-devel
 BuildRequires:  qt6-qtsvg-devel
@@ -25,9 +26,15 @@ BuildRequires:  qt6-qtshadertools
 BuildRequires:  systemd-devel
 %endif
 
+%if 0%{?suse_version}
+Requires:       qt6-base
+Requires:       qt6-declarative
+Requires:       qt6-svg
+%else
 Requires:       qt6-qtbase
 Requires:       qt6-qtdeclarative
 Requires:       qt6-qtsvg
+%endif
 
 %description
 Logitune is a Logitech Options+ alternative for Linux. Configure HID++
