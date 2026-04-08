@@ -45,7 +45,7 @@ DPI, SmartShift, scroll, gesture, and thumb wheel settings.
 %autosetup -n logitune-%{version}
 
 %build
-%cmake -G Ninja -DBUILD_TESTING=OFF
+%cmake -DBUILD_TESTING=OFF
 %cmake_build
 
 %install
