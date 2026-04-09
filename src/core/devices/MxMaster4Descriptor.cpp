@@ -99,6 +99,13 @@ int MxMaster4Descriptor::minDpi() const  { return 200; }
 int MxMaster4Descriptor::maxDpi() const  { return 8000; }
 int MxMaster4Descriptor::dpiStep() const { return 50; }
 
-int MxMaster4Descriptor::easySwitchSlots() const { return 3; }
+QList<EasySwitchSlotPosition> MxMaster4Descriptor::easySwitchSlotPositions() const
+{
+    return {
+        { 0.335, 0.688 }, // 1
+        { 0.393, 0.675 }, // 2
+        { 0.453, 0.689 }, // 3
+    };
+}
 
 } // namespace logitune

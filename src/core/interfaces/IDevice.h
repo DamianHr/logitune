@@ -34,6 +34,11 @@ struct FeatureSupport {
     bool gestureV2 = false;
 };
 
+struct EasySwitchSlotPosition {
+    double xPct;
+    double yPct;
+};
+
 class IDevice {
 public:
     virtual ~IDevice() = default;
@@ -52,7 +57,7 @@ public:
     virtual int minDpi() const = 0;
     virtual int maxDpi() const = 0;
     virtual int dpiStep() const = 0;
-    virtual int easySwitchSlots() const = 0;
+    virtual QList<EasySwitchSlotPosition> easySwitchSlotPositions() const = 0;
 };
 
 } // namespace logitune

@@ -19,7 +19,7 @@ public:
     int minDpi() const override;
     int maxDpi() const override;
     int dpiStep() const override;
-    int easySwitchSlots() const override;
+    QList<EasySwitchSlotPosition> easySwitchSlotPositions() const override;
 };
 
 } // namespace logitune

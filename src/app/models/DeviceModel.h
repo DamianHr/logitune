@@ -39,7 +39,7 @@ class DeviceModel : public QObject {
     Q_PROPERTY(QVariantList buttonHotspots READ buttonHotspots NOTIFY deviceConnectedChanged)
     Q_PROPERTY(QVariantList scrollHotspots READ scrollHotspots NOTIFY deviceConnectedChanged)
     Q_PROPERTY(QVariantList controlDescriptors READ controlDescriptors NOTIFY deviceConnectedChanged)
-    Q_PROPERTY(int easySwitchSlots READ easySwitchSlots NOTIFY deviceConnectedChanged)
+    Q_PROPERTY(QVariantList easySwitchSlotPositions READ easySwitchSlotPositions NOTIFY deviceConnectedChanged)
     Q_PROPERTY(QString deviceSerial READ deviceSerial NOTIFY deviceConnectedChanged)
     Q_PROPERTY(QString firmwareVersion READ firmwareVersion NOTIFY deviceConnectedChanged)
     Q_PROPERTY(int activeSlot READ activeSlot NOTIFY deviceConnectedChanged)
@@ -75,7 +75,7 @@ public:
     QVariantList buttonHotspots() const;
     QVariantList scrollHotspots() const;
     QVariantList controlDescriptors() const;
-    int easySwitchSlots() const;
+    QVariantList easySwitchSlotPositions() const;
     QString deviceSerial() const;
     QString firmwareVersion() const;
     int activeSlot() const;

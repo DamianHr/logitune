@@ -28,7 +28,7 @@ Item {
     Image {
         id: mouseImage
         anchors.centerIn: parent
-        width:  parent.implicitWidth
+        width: parent.implicitWidth
         height: parent.implicitHeight
         source: root.imageSource
         fillMode: Image.PreserveAspectFit
@@ -44,7 +44,7 @@ Item {
 
             readonly property var hp: DeviceModel.buttonHotspots[modelData]
 
-            // Skip non-configurable buttons (left/right click etc.)
+            // Skip non-configurable buttons
             visible: hp.configurable
 
             // Dot centre in item coordinates

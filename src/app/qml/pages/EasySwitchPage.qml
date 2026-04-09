@@ -51,22 +51,18 @@ Item {
                 readonly property real imgW: deviceImage.paintedWidth
                 readonly property real imgH: deviceImage.paintedHeight
 
-                readonly property var slotPositions: [
-                    { x: 0.325, y: 0.658 },
-                    { x: 0.384, y: 0.642 },
-                    { x: 0.443, y: 0.643 }
-                ]
+                readonly property var slotPositions: DeviceModel.easySwitchSlotPositions
 
                 Repeater {
-                    model: DeviceModel.easySwitchSlots
+                    model: imageContainer.slotPositions.length
                     Rectangle {
                         required property int index
                         readonly property bool isActive: (index + 1) === DeviceModel.activeSlot
                         readonly property var pos: index < imageContainer.slotPositions.length
-                            ? imageContainer.slotPositions[index] : { x: 0.5, y: 0.65 }
+                            ? imageContainer.slotPositions[index] : { xPct: 0.5, yPct: 0.65 }
 
-                        x: imageContainer.imgX + imageContainer.imgW * pos.x - width / 2
-                        y: imageContainer.imgY + imageContainer.imgH * pos.y - height / 2
+                        x: imageContainer.imgX + imageContainer.imgW * pos.xPct - width / 2
+                        y: imageContainer.imgY + imageContainer.imgH * pos.yPct - height / 2
                         width: 7; height: 7; radius: 3.5
                         color: isActive ? Theme.accent : "transparent"
                         visible: isActive
@@ -108,7 +104,7 @@ Item {
                 anchors.horizontalCenter: parent.horizontalCenter
 
                 Repeater {
-                    model: DeviceModel.easySwitchSlots
+                    model: DeviceModel.easySwitchSlotPositions.length
                     delegate: Rectangle {
                         required property int index
                         readonly property bool isActive: (index + 1) === DeviceModel.activeSlot
@@ -162,7 +158,7 @@ Item {
                             anchors.leftMargin: 62
                             height: 1
                             color: Theme.border
-                            visible: index < DeviceModel.easySwitchSlots - 1
+                            visible: index < DeviceModel.easySwitchSlotPositions.length - 1
                         }
                     }
                 }
