@@ -5,6 +5,7 @@
 namespace logitune {
 
 DeviceRegistry::DeviceRegistry() {
+    registerDevice(std::make_unique<MxMaster2sDescriptor>());
     registerDevice(std::make_unique<MxMaster3sDescriptor>());
     registerDevice(std::make_unique<MxMaster4Descriptor>());
 }
