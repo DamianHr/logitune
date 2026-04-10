@@ -9,7 +9,7 @@ QString MxMaster2sDescriptor::deviceName() const
 
 std::vector<uint16_t> MxMaster2sDescriptor::productIds() const
 {
-    return { 0xb034 };  // Bolt receiver-reported PID; BT PID discovered via device name
+    return { 0xb019 };  // Bolt receiver-reported PID; BT PID discovered via device name
 }
 
 bool MxMaster2sDescriptor::matchesPid(uint16_t pid) const
@@ -38,20 +38,20 @@ QList<ControlDescriptor> MxMaster2sDescriptor::controls() const
 QList<HotspotDescriptor> MxMaster2sDescriptor::buttonHotspots() const
 {
     return {
-        { 2, 0.71, 0.15,  QStringLiteral("right"), 0.0  },
-        { 6, 0.81, 0.34,  QStringLiteral("right"), 0.0  },
-        { 7, 0.55, 0.515, QStringLiteral("right"), 0.0  },
-        { 4, 0.35, 0.43,  QStringLiteral("left"),  0.0  },
-        { 3, 0.45, 0.60,  QStringLiteral("left"),  0.20 },
-        { 5, 0.08, 0.58,  QStringLiteral("left"),  0.0  },
+        { 2, 0.73, 0.20,  QStringLiteral("right"), 0.0  },
+        { 6, 0.78, 0.37,  QStringLiteral("right"), 0.0  },
+        { 7, 0.43, 0.48,  QStringLiteral("right"), 0.05  },
+        { 4, 0.45, 0.56,  QStringLiteral("left"),  0.15  },
+        { 3, 0.46, 0.67,  QStringLiteral("right"), 0.15 },
+        { 5, 0.17, 0.50,  QStringLiteral("left"),  0.0  },
     };
 }
 
 QList<HotspotDescriptor> MxMaster2sDescriptor::scrollHotspots() const
 {
     return {
-        { -1, 0.73, 0.16, QStringLiteral("right"), 0.0 },
-        { -2, 0.55, 0.51, QStringLiteral("left"),  0.0 },
+        { -1, 0.73, 0.20, QStringLiteral("right"), 0.0 },
+        { -2, 0.43, 0.48, QStringLiteral("left"),  0.0 },
         { -3, 0.83, 0.54, QStringLiteral("right"), 0.0 },
     };
 }
@@ -102,9 +102,9 @@ int MxMaster2sDescriptor::dpiStep() const { return 50; }
 QList<EasySwitchSlotPosition> MxMaster2sDescriptor::easySwitchSlotPositions() const
 {
     return {
-        { 0.325, 0.658 }, // 1
-        { 0.384, 0.642 }, // 2
-        { 0.443, 0.643 }, // 3
+        { 0.355, 0.70 }, // 1
+        { 0.414, 0.683 }, // 2
+        { 0.474, 0.70 },  // 3
     };
 }
 

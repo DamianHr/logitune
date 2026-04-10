@@ -1,4 +1,5 @@
 #include "DeviceRegistry.h"
+#include "devices/MxMaster2sDescriptor.h"
 #include "devices/MxMaster3sDescriptor.h"
 #include "devices/MxMaster4Descriptor.h"
 
