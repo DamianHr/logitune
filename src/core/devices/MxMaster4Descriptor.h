@@ -3,7 +3,7 @@
 
 namespace logitune {
 
-class MxMaster3sDescriptor : public IDevice {
+class MxMaster4Descriptor : public IDevice {
 public:
     QString deviceName() const override;
     std::vector<uint16_t> productIds() const override;

@@ -1,18 +1,18 @@
-#include "MxMaster3sDescriptor.h"
+#include "MxMaster4Descriptor.h"
 
 namespace logitune {
 
-QString MxMaster3sDescriptor::deviceName() const
+QString MxMaster4Descriptor::deviceName() const
 {
-    return QStringLiteral("MX Master 3S");
+    return QStringLiteral("MX Master 4");
 }
 
-std::vector<uint16_t> MxMaster3sDescriptor::productIds() const
+std::vector<uint16_t> MxMaster4Descriptor::productIds() const
 {
-    return { 0xb034 };  // Bolt receiver-reported PID; BT PID discovered via device name
+    return { 0xb042 };  // Bolt receiver-reported PID; BT PID discovered via device name
 }
 
-bool MxMaster3sDescriptor::matchesPid(uint16_t pid) const
+bool MxMaster4Descriptor::matchesPid(uint16_t pid) const
 {
     for (auto id : productIds()) {
         if (id == pid)
@@ -21,7 +21,7 @@ bool MxMaster3sDescriptor::matchesPid(uint16_t pid) const
     return false;
 }
 
-QList<ControlDescriptor> MxMaster3sDescriptor::controls() const
+QList<ControlDescriptor> MxMaster4Descriptor::controls() const
 {
     return {
         { 0x0050, 0, QStringLiteral("Left click"),        QStringLiteral("default"),          false },
@@ -35,28 +35,28 @@ QList<ControlDescriptor> MxMaster3sDescriptor::controls() const
     };
 }
 
-QList<HotspotDescriptor> MxMaster3sDescriptor::buttonHotspots() const
+QList<HotspotDescriptor> MxMaster4Descriptor::buttonHotspots() const
 {
     return {
-        { 2, 0.71, 0.15,  QStringLiteral("right"), 0.0  },
-        { 6, 0.81, 0.34,  QStringLiteral("right"), 0.0  },
-        { 7, 0.55, 0.515, QStringLiteral("right"), 0.0  },
-        { 4, 0.35, 0.43,  QStringLiteral("left"),  0.0  },
-        { 3, 0.45, 0.60,  QStringLiteral("left"),  0.20 },
-        { 5, 0.08, 0.58,  QStringLiteral("left"),  0.0  },
+        { 2, 0.75, 0.23,  QStringLiteral("right"), 0.0  },
+        { 6, 0.81, 0.43,  QStringLiteral("right"), 0.0  },
+        { 7, 0.55, 0.515, QStringLiteral("right"), 0.20  },
+        { 4, 0.43, 0.50,  QStringLiteral("left"),  0.0  },
+        { 3, 0.47, 0.60,  QStringLiteral("left"),  0.20 },
+        { 5, 0.39, 0.38,  QStringLiteral("left"),  -0.05  },
     };
 }
 
-QList<HotspotDescriptor> MxMaster3sDescriptor::scrollHotspots() const
+QList<HotspotDescriptor> MxMaster4Descriptor::scrollHotspots() const
 {
     return {
-        { -1, 0.73, 0.16, QStringLiteral("right"), 0.0 },
+        { -1, 0.73, 0.23, QStringLiteral("right"), 0.0 },
         { -2, 0.55, 0.51, QStringLiteral("left"),  0.0 },
-        { -3, 0.83, 0.54, QStringLiteral("right"), 0.0 },
+        { -3, 0.82, 0.43, QStringLiteral("right"), 0.0 },
     };
 }
 
-FeatureSupport MxMaster3sDescriptor::features() const
+FeatureSupport MxMaster4Descriptor::features() const
 {
     FeatureSupport f;
     f.battery        = true;
@@ -69,22 +69,22 @@ FeatureSupport MxMaster3sDescriptor::features() const
     return f;
 }
 
-QString MxMaster3sDescriptor::frontImagePath() const
+QString MxMaster4Descriptor::frontImagePath() const
 {
-    return QStringLiteral("qrc:/Logitune/qml/assets/mx-master-3s.png");
+    return QStringLiteral("qrc:/Logitune/qml/assets/mx-master-4.png");
 }
 
-QString MxMaster3sDescriptor::sideImagePath() const
+QString MxMaster4Descriptor::sideImagePath() const
 {
-    return QStringLiteral("qrc:/Logitune/qml/assets/mx-master-3s-side.png");
+    return QStringLiteral("qrc:/Logitune/qml/assets/mx-master-4-side.png");
 }
 
-QString MxMaster3sDescriptor::backImagePath() const
+QString MxMaster4Descriptor::backImagePath() const
 {
-    return QStringLiteral("qrc:/Logitune/qml/assets/mx-master-3s-back.png");
+    return QStringLiteral("qrc:/Logitune/qml/assets/mx-master-4-back.png");
 }
 
-QMap<QString, ButtonAction> MxMaster3sDescriptor::defaultGestures() const
+QMap<QString, ButtonAction> MxMaster4Descriptor::defaultGestures() const
 {
     QMap<QString, ButtonAction> g;
     g[QStringLiteral("up")]    = { ButtonAction::Default,   {} };
@@ -95,16 +95,16 @@ QMap<QString, ButtonAction> MxMaster3sDescriptor::defaultGestures() const
     return g;
 }
 
-int MxMaster3sDescriptor::minDpi() const  { return 200; }
-int MxMaster3sDescriptor::maxDpi() const  { return 8000; }
-int MxMaster3sDescriptor::dpiStep() const { return 50; }
+int MxMaster4Descriptor::minDpi() const  { return 200; }
+int MxMaster4Descriptor::maxDpi() const  { return 8000; }
+int MxMaster4Descriptor::dpiStep() const { return 50; }
 
-QList<EasySwitchSlotPosition> MxMaster3sDescriptor::easySwitchSlotPositions() const
+QList<EasySwitchSlotPosition> MxMaster4Descriptor::easySwitchSlotPositions() const
 {
     return {
-        { 0.325, 0.658 }, // 1
-        { 0.384, 0.642 }, // 2
-        { 0.443, 0.643 }, // 3
+        { 0.335, 0.688 }, // 1
+        { 0.393, 0.675 }, // 2
+        { 0.453, 0.689 }, // 3
     };
 }
 

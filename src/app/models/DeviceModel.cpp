@@ -219,11 +219,20 @@ QVariantList DeviceModel::controlDescriptors() const
     return result;
 }
 
-int DeviceModel::easySwitchSlots() const
+QVariantList DeviceModel::easySwitchSlotPositions() const
 {
-    if (m_dm && m_dm->activeDevice())
-        return m_dm->activeDevice()->easySwitchSlots();
-    return 3;
+    QVariantList result;
+    if (!m_dm || !m_dm->activeDevice())
+        return result;
+
+    const auto positions = m_dm->activeDevice()->easySwitchSlotPositions();
+    for (const auto &pos : positions) {
+        QVariantMap entry;
+        entry[QStringLiteral("xPct")] = pos.xPct;
+        entry[QStringLiteral("yPct")] = pos.yPct;
+        result.append(entry);
+    }
+    return result;
 }
 
 QString DeviceModel::deviceSerial() const
