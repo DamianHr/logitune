@@ -44,6 +44,7 @@ class DeviceModel : public QObject {
     Q_PROPERTY(QString deviceSerial READ deviceSerial NOTIFY deviceConnectedChanged)
     Q_PROPERTY(QString firmwareVersion READ firmwareVersion NOTIFY deviceConnectedChanged)
     Q_PROPERTY(int activeSlot READ activeSlot NOTIFY deviceConnectedChanged)
+    Q_PROPERTY(QString deviceStatus READ deviceStatus NOTIFY deviceConnectedChanged)
 
 public:
     explicit DeviceModel(QObject *parent = nullptr);
@@ -81,6 +82,7 @@ public:
     QString deviceSerial() const;
     QString firmwareVersion() const;
     int activeSlot() const;
+    QString deviceStatus() const;
     Q_INVOKABLE bool isSlotPaired(int slot) const;  // 1-based
 
     Q_INVOKABLE void setDPI(int value);
