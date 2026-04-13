@@ -38,7 +38,10 @@ def load_device_db(main_dir: Path) -> dict[str, DeviceDbEntry]:
     for path in sorted(glob.glob(pattern)):
         try:
             data = json.load(open(path, encoding="utf-8-sig"))
-        except (OSError, json.JSONDecodeError):
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+            # Real Options+ dirs sometimes contain non-text files mixed
+            # in with the devices JSON (or older files in a different
+            # encoding). Skip and keep going.
             continue
         for d in data.get("devices", []):
             if d.get("type") != "MOUSE":

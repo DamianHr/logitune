@@ -21,10 +21,14 @@ SLOT_NAME_MAP: dict[str, tuple[str, str, bool]] = {
     "SLOT_NAME_GESTURE_BUTTON":      ("Gesture button",    "gesture-trigger",   True),
     "SLOT_NAME_DPI_BUTTON":          ("DPI button",        "default",           True),
     "SLOT_NAME_LEFT_SCROLL_BUTTON":  ("Shift wheel mode",  "smartshift-toggle", True),
+    "SLOT_NAME_RIGHT_SCROLL_BUTTON": ("Shift wheel mode",  "smartshift-toggle", True),
     "SLOT_NAME_MODESHIFT_BUTTON":    ("Shift wheel mode",  "smartshift-toggle", True),
     "SLOT_NAME_SIDE_BUTTON_TOP":     ("Top button",        "default",           True),
     "SLOT_NAME_SIDE_BUTTON_BOTTOM":  ("Bottom button",     "default",           True),
     "SLOT_NAME_THUMBWHEEL":          ("Thumb wheel",       "default",           True),
+    "SLOT_NAME_MISSION_CONTROL":     ("Mission Control",   "default",           True),
+    "SLOT_NAME_EMOJI":               ("Emoji",             "default",           True),
+    "SLOT_NAME_SMART_ZOOM":          ("Smart zoom",        "default",           True),
 }
 
 

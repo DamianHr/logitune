@@ -28,6 +28,29 @@ def test_load_device_db_returns_two_mice():
     assert set(mice.keys()) == {"mx_master_2s", "mx_master_3s"}
 
 
+def test_load_device_db_skips_non_utf8_files(tmp_path):
+    # Real Options+ devices/ dirs occasionally contain non-text files
+    # mixed in with the JSON (or files in a stray encoding). The loader
+    # should swallow the decode error for the bad file and keep parsing
+    # the good ones.
+    dst = tmp_path / "data" / "devices"
+    dst.mkdir(parents=True)
+    # Garbage binary file matching the devices*.json glob
+    (dst / "devices_bad.json").write_bytes(b"\xff\xfe\x82\x00garbage")
+    # Good file with one mouse entry
+    (dst / "devices_good.json").write_text(json.dumps({
+        "devices": [{
+            "type": "MOUSE",
+            "depot": "test_mouse",
+            "displayName": "Test Mouse",
+            "modes": [{"interfaces": [{"id": "046d_dead"}]}],
+            "capabilities": {},
+        }]
+    }))
+    mice = sources.load_device_db(tmp_path)
+    assert set(mice.keys()) == {"test_mouse"}
+
+
 def test_device_db_entry_has_expected_fields():
     mice = sources.load_device_db(FIXTURE_ROOT / "main" / "logioptionsplus")
     m3s = mice["mx_master_3s"]
