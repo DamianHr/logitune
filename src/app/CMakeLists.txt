@@ -76,6 +76,9 @@ qt_add_qml_module(logitune-app-lib
         qml/assets/mx-master-4.png
         qml/assets/mx-master-4-back.png
         qml/assets/mx-master-4-side.png
+        qml/assets/g502-proteus-spectrum.png
+        qml/assets/g502-proteus-spectrum-back.png
+        qml/assets/g502-proteus-spectrum-side.png
         qml/assets/logitune-icon.svg
         qml/assets/logitune-tray.svg
 )

@@ -43,6 +43,7 @@ bool HidrawDevice::open()
 
     m_info.vendorId  = static_cast<uint16_t>(rawInfo.vendor);
     m_info.productId = static_cast<uint16_t>(rawInfo.product);
+    m_info.busType   = static_cast<uint32_t>(rawInfo.bustype);
     return true;
 }
 

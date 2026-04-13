@@ -2,6 +2,7 @@
 #include "devices/MxMaster2sDescriptor.h"
 #include "devices/MxMaster3sDescriptor.h"
 #include "devices/MxMaster4Descriptor.h"
+#include "devices/G502ProtusSpectrumDescriptor.h"
 
 namespace logitune {
 
@@ -9,6 +10,7 @@ DeviceRegistry::DeviceRegistry() {
     registerDevice(std::make_unique<MxMaster2sDescriptor>());
     registerDevice(std::make_unique<MxMaster3sDescriptor>());
     registerDevice(std::make_unique<MxMaster4Descriptor>());
+    registerDevice(std::make_unique<G502ProtusSpectrumDescriptor>());
 }
 
 const IDevice* DeviceRegistry::findByPid(uint16_t pid) const {

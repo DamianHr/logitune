@@ -4,7 +4,7 @@ import QtQuick.Layouts
 import Logitune
 
 // Options+-style battery indicator: percentage, vertical battery outline,
-// and connection type icon (Bolt receiver or Bluetooth).
+// and connection type icon (Bolt receiver, Bluetooth, or USB).
 Rectangle {
     id: chip
     width: chipRow.implicitWidth + 16
@@ -13,7 +13,7 @@ Rectangle {
     color: Theme.cardBg
     border.color: Theme.accent
     border.width: 1
-    visible: chip.level > 0
+    visible: chip.level > 0 || chip.connType === "USB"
 
     readonly property int level: DeviceModel.batteryLevel
     readonly property bool charging: DeviceModel.batteryCharging
@@ -37,11 +37,13 @@ Rectangle {
             font.pixelSize: 12
             font.bold: true
             color: chip.battColor
+            visible: chip.level > 0
         }
 
         // Vertical battery outline with fill level
         Item {
             width: 12; height: 20
+            visible: chip.level > 0
 
             // Battery tip (positive terminal, top)
             Rectangle {
@@ -147,6 +149,38 @@ Rectangle {
                     + '<line x1="12" y1="2" x2="12" y2="22" stroke="' + chip.battColor + '" stroke-width="2" stroke-linecap="round"/>'
                     + '<line x1="6" y1="7" x2="12" y2="12" stroke="' + chip.battColor + '" stroke-width="2" stroke-linecap="round"/>'
                     + '<line x1="6" y1="17" x2="12" y2="12" stroke="' + chip.battColor + '" stroke-width="2" stroke-linecap="round"/>'
+                    + '</svg>')
+            }
+        }
+
+        // USB trident icon
+        Item {
+            width: 18; height: 18
+            visible: chip.connType === "USB"
+
+            Image {
+                anchors.fill: parent
+                sourceSize: Qt.size(72, 72)
+                smooth: true
+                mipmap: true
+                source: "data:image/svg+xml," + encodeURIComponent(
+                    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+                    // Vertical stem
+                    + '<rect x="46" y="30" width="8" height="42" fill="' + Theme.accent + '"/>'
+                    // Horizontal crossbar
+                    + '<rect x="20" y="50" width="60" height="7" fill="' + Theme.accent + '"/>'
+                    // Left prong (top)
+                    + '<rect x="20" y="30" width="7" height="20" fill="' + Theme.accent + '"/>'
+                    // Left prong cap (square)
+                    + '<rect x="14" y="24" width="18" height="10" rx="2" fill="' + Theme.accent + '"/>'
+                    // Right prong (top)
+                    + '<rect x="73" y="30" width="7" height="20" fill="' + Theme.accent + '"/>'
+                    // Right prong cap (circle)
+                    + '<circle cx="76" cy="24" r="8" fill="' + Theme.accent + '"/>'
+                    // Center prong cap (triangle pointing up)
+                    + '<polygon points="50,8 43,22 57,22" fill="' + Theme.accent + '"/>'
+                    // Bottom plug
+                    + '<rect x="38" y="72" width="24" height="14" rx="3" fill="' + Theme.accent + '"/>'
                     + '</svg>')
             }
         }

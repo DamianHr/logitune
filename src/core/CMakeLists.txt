@@ -23,6 +23,7 @@ target_sources(logitune-core PRIVATE
     devices/MxMaster2sDescriptor.cpp
     devices/MxMaster3sDescriptor.cpp
     devices/MxMaster4Descriptor.cpp
+    devices/G502ProtusSpectrumDescriptor.cpp
     interfaces/IDesktopIntegration.cpp
     interfaces/IInputInjector.cpp
     interfaces/ITransport.cpp

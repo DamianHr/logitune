@@ -11,6 +11,7 @@ public:
     struct DeviceInfo {
         uint16_t vendorId{};
         uint16_t productId{};
+        uint32_t busType{};   // HID bus type: 0x0003=USB, 0x0005=Bluetooth
         QString path;
     };
 

@@ -88,6 +88,43 @@ public:
             m_controls.append(cd);
         }
     }
+
+    /// Populates 10 G502 control descriptors (no gestures, no thumb wheel)
+    void setupG502Controls() {
+        m_deviceName  = QStringLiteral("Logitech Gaming Mouse G502");
+        m_productIds  = { 0xc332 };
+        m_features.reprogControls = true;
+        m_features.battery        = false;
+        m_features.adjustableDpi  = true;
+        m_features.smartShift     = true;
+        m_features.hiResWheel     = true;
+        m_features.thumbWheel     = false;
+
+        struct Entry { uint16_t cid; int idx; const char *name; const char *action; bool cfg; };
+        static const Entry entries[10] = {
+            { 0x0050, 0, "Left click",       "default",          false },
+            { 0x0051, 1, "Right click",      "default",          false },
+            { 0x0052, 2, "Middle click",     "default",          true  },
+            { 0x0053, 3, "Back",             "default",          true  },
+            { 0x0056, 4, "Forward",          "default",          true  },
+            { 0x005b, 5, "Scroll left tilt", "default",          true  },
+            { 0x005d, 6, "Scroll right tilt","default",          true  },
+            { 0x00c5, 7, "Sniper button",    "default",          true  },
+            { 0x00ed, 8, "DPI button",       "default",          true  },
+            { 0x00c4, 9, "Shift wheel mode", "smartshift-toggle",true  },
+        };
+
+        m_controls.clear();
+        for (const auto &e : entries) {
+            ControlDescriptor cd;
+            cd.controlId         = e.cid;
+            cd.buttonIndex       = e.idx;
+            cd.defaultName       = QString::fromUtf8(e.name);
+            cd.defaultActionType = QString::fromUtf8(e.action);
+            cd.configurable      = e.cfg;
+            m_controls.append(cd);
+        }
+    }
 };
 
 } // namespace logitune::test

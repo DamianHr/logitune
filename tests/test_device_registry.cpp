@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <optional>
 #include "DeviceRegistry.h"
 using namespace logitune;
 
@@ -8,9 +9,13 @@ struct DeviceSpec {
     int minDpi, maxDpi, dpiStep;
     size_t buttonHotspots, scrollHotspots;
     size_t minControls;
-    uint16_t control0Cid, control5Cid;
-    const char* control5ActionType, *control6ActionType;
+    uint16_t control0Cid;
+    std::optional<uint16_t> control5Cid;
+    std::optional<const char*> control5ActionType;
+    std::optional<const char*> control6ActionType;
+    std::optional<int> smartShiftToggleIndex;
     bool battery, adjustableDpi, smartShift, reprogControls, gestureV2;
+    bool expectGestures = true;  // default: expect gesture button
     // gestures
     ButtonAction::Type gestureDownType;
     const char* gestureDownPayload;
@@ -63,6 +68,21 @@ static const DeviceSpec kDevices[] = {
         .gestureDownPayload = "Super+D",
         .gestureUpType = ButtonAction::Default,
     },
+    {
+        .pid = 0xc332,
+        .name = "Logitech Gaming Mouse G502",
+        .minDpi = 200, .maxDpi = 12000, .dpiStep = 50,
+        .buttonHotspots = 8, .scrollHotspots = 1,
+        .minControls = 10,
+        .control0Cid = 0x0050,
+        .control5Cid = std::nullopt,
+        .control5ActionType = std::nullopt,
+        .control6ActionType = std::nullopt,
+        .smartShiftToggleIndex = 9,
+        .battery = false, .adjustableDpi = true, .smartShift = true,
+        .reprogControls = true, .gestureV2 = false,
+        .expectGestures = false,
+    },
 };
 
 class DeviceRegistryTest : public testing::TestWithParam<DeviceSpec> {
@@ -84,9 +104,20 @@ TEST_P(DeviceRegistryTest, ControlsHaveExpectedCids) {
     auto controls = dev->controls();
     ASSERT_GE(controls.size(), s.minControls);
     EXPECT_EQ(controls[0].controlId, s.control0Cid);
-    EXPECT_EQ(controls[5].controlId, s.control5Cid);
-    EXPECT_EQ(controls[5].defaultActionType, s.control5ActionType);
-    EXPECT_EQ(controls[6].defaultActionType, s.control6ActionType);
+    if (s.control5Cid.has_value()) {
+        ASSERT_GE(controls.size(), 6);
+        EXPECT_EQ(controls[5].controlId, s.control5Cid.value());
+        if (s.control5ActionType.has_value())
+            EXPECT_EQ(controls[5].defaultActionType, s.control5ActionType.value());
+    }
+    if (s.control6ActionType.has_value()) {
+        ASSERT_GE(controls.size(), 7);
+        EXPECT_EQ(controls[6].defaultActionType, s.control6ActionType.value());
+    }
+    if (s.smartShiftToggleIndex.has_value()) {
+        ASSERT_GE(controls.size(), s.smartShiftToggleIndex.value() + 1);
+        EXPECT_EQ(controls[s.smartShiftToggleIndex.value()].defaultActionType, "smartshift-toggle");
+    }
 }
 
 TEST_P(DeviceRegistryTest, DefaultGesturesPresent) {
@@ -94,6 +125,10 @@ TEST_P(DeviceRegistryTest, DefaultGesturesPresent) {
     ASSERT_NE(dev, nullptr);
     auto& s = GetParam();
     auto gestures = dev->defaultGestures();
+    if (!s.expectGestures) {
+        EXPECT_TRUE(gestures.isEmpty());
+        return;
+    }
     EXPECT_TRUE(gestures.contains("down"));
     EXPECT_EQ(gestures["down"].type, s.gestureDownType);
     EXPECT_EQ(gestures["down"].payload, s.gestureDownPayload);

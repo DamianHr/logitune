@@ -235,6 +235,27 @@ QVariantList DeviceModel::easySwitchSlotPositions() const
     return result;
 }
 
+bool DeviceModel::hasEasySwitch() const
+{
+    if (!m_dm || !m_dm->activeDevice())
+        return false;
+    return !m_dm->activeDevice()->easySwitchSlotPositions().isEmpty();
+}
+
+bool DeviceModel::hasBattery() const
+{
+    if (m_dm && m_dm->activeDevice())
+        return m_dm->activeDevice()->features().battery;
+    return false;
+}
+
+bool DeviceModel::hasThumbWheel() const
+{
+    if (m_dm && m_dm->activeDevice())
+        return m_dm->activeDevice()->features().thumbWheel;
+    return false;
+}
+
 bool DeviceModel::smoothScrollSupported() const
 {
     if (m_dm && m_dm->activeDevice())

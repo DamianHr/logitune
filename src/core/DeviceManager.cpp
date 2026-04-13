@@ -422,7 +422,9 @@ void DeviceManager::probeDevice(const QString &devNode)
         }
     } else if (isDirectDevice(pid)) {
         deviceIndex = deviceIndexForDirect();
-        connType = QStringLiteral("Bluetooth");
+        // bustype 0x0005 = Bluetooth HID, 0x0003 = USB HID
+        connType = (info.busType == 0x0005) ? QStringLiteral("Bluetooth")
+                                            : QStringLiteral("USB");
     } else {
         // Unknown Logitech device — skip
         return;

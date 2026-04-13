@@ -14,7 +14,7 @@ Rectangle {
     readonly property var navItems: [
         { name: "buttons",     label: "BUTTONS",         icon: "\uD83D\uDDB1", enabled: true  },
         { name: "pointscroll", label: "POINT & SCROLL",  icon: "\u25CE",       enabled: true  },
-        { name: "easyswitch",  label: "EASY-SWITCH",     icon: "\u21C4",       enabled: true  },
+        { name: "easyswitch",  label: "EASY-SWITCH",     icon: "\u21C4",       enabled: DeviceModel.hasEasySwitch },
         { name: "settings",    label: "SETTINGS",         icon: "\u2261",       enabled: true  }
     ]
 
@@ -142,7 +142,7 @@ Rectangle {
         BatteryChip {
             Layout.alignment: Qt.AlignHCenter
             Layout.bottomMargin: 16
-            visible: DeviceModel.deviceConnected && DeviceModel.batteryLevel > 0
+            visible: DeviceModel.deviceConnected
         }
     }
 }
