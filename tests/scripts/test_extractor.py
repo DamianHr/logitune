@@ -91,3 +91,66 @@ def test_features_default_false_on_empty_caps():
     assert f["smartShift"] is False
     # smoothScroll DEFAULTS TO TRUE per parser convention
     assert f["smoothScroll"] is True
+
+
+from optionsplus_extractor import slots
+
+
+def test_parse_buttons_for_3s():
+    depot = sources.load_depot(FIXTURE_ROOT / "devices" / "mx_master_3s")
+    parsed = slots.parse(depot.metadata)
+    assert len(parsed.buttons) == 6  # 6 configurable buttons on MX Master 3S
+    cids = sorted(b.cid for b in parsed.buttons)
+    # 3S has Middle(0x52), Back(0x53), Forward(0x56), Gesture(0xC3),
+    # Shift(0xC4), Thumb(0x0000 synthetic)
+    assert 0x0000 in cids  # thumbwheel synthetic
+    assert 0x0052 in cids
+    assert 0x00C3 in cids
+    assert 0x00C4 in cids
+
+
+def test_parse_scroll_for_3s():
+    depot = sources.load_depot(FIXTURE_ROOT / "devices" / "mx_master_3s")
+    parsed = slots.parse(depot.metadata)
+    kinds = {s.kind for s in parsed.scroll}
+    assert kinds == {"scrollwheel", "thumbwheel", "pointer"}
+
+
+def test_parse_easyswitch_for_3s():
+    depot = sources.load_depot(FIXTURE_ROOT / "devices" / "mx_master_3s")
+    parsed = slots.parse(depot.metadata)
+    assert len(parsed.easyswitch) == 3
+    # slot numbers must be 1, 2, 3 in order
+    assert [s.index for s in parsed.easyswitch] == [1, 2, 3]
+
+
+def test_marker_coords_are_percentages_not_pixels():
+    depot = sources.load_depot(FIXTURE_ROOT / "devices" / "mx_master_3s")
+    parsed = slots.parse(depot.metadata)
+    for b in parsed.buttons:
+        assert 0.0 <= b.x_pct <= 1.0
+        assert 0.0 <= b.y_pct <= 1.0
+    # Middle click sits near the top of the scroll wheel — x and y
+    # should be well above the origin, not a fraction-of-a-pixel away.
+    middle = next(b for b in parsed.buttons if b.cid == 0x0052)
+    assert middle.x_pct > 0.5
+    assert middle.y_pct < 0.3
+    assert middle.y_pct > 0.05  # not clustered at origin
+
+
+def test_unknown_slot_name_raises():
+    bogus = {
+        "images": [{
+            "key": "device_buttons_image",
+            "origin": {"width": 100, "height": 100},
+            "assignments": [{
+                "slotId": "x_c82",
+                "slotName": "SLOT_NAME_NONEXISTENT_BUTTON",
+                "marker": {"x": 50, "y": 50},
+            }],
+        }],
+    }
+    import pytest
+    with pytest.raises(slots.UnknownSlotName) as exc:
+        slots.parse(bogus)
+    assert "SLOT_NAME_NONEXISTENT_BUTTON" in str(exc.value)
