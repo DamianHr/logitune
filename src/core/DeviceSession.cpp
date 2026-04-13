@@ -60,10 +60,16 @@ DeviceSession::~DeviceSession()
 
 QString DeviceSession::deviceId() const
 {
-    return QStringLiteral("%1-%2-%3")
+    // Identity must be stable across transport switches (Bolt receiver vs
+    // direct Bluetooth) for the same physical device, so we use the
+    // HID++ unit ID (serial) only. VID/PID differ per transport since
+    // Bolt reports the receiver PID while BT reports the mouse PID.
+    // Fall back to a VID-PID-empty placeholder before enumerate completes.
+    if (!m_deviceSerial.isEmpty())
+        return m_deviceSerial;
+    return QStringLiteral("%1-%2")
         .arg(m_deviceVid, 4, 16, QLatin1Char('0'))
-        .arg(m_devicePid, 4, 16, QLatin1Char('0'))
-        .arg(m_deviceSerial);
+        .arg(m_devicePid, 4, 16, QLatin1Char('0'));
 }
 
 // ---------------------------------------------------------------------------

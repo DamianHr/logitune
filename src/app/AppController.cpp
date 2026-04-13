@@ -90,11 +90,13 @@ void AppController::wireSignals()
     connect(&m_profileEngine, &ProfileEngine::displayProfileChanged,
             this, &AppController::onDisplayProfileChanged);
 
-    // Session lifecycle
-    connect(&m_deviceManager, &DeviceManager::sessionAdded,
-            this, &AppController::onSessionAdded);
-    connect(&m_deviceManager, &DeviceManager::sessionRemoved,
-            this, &AppController::onSessionRemoved);
+    // Physical device lifecycle — one per unique serial, survives transport
+    // switches. Per-transport events are routed through PhysicalDevice
+    // (which fans in signals from all its transports).
+    connect(&m_deviceManager, &DeviceManager::physicalDeviceAdded,
+            this, &AppController::onPhysicalDeviceAdded);
+    connect(&m_deviceManager, &DeviceManager::physicalDeviceRemoved,
+            this, &AppController::onPhysicalDeviceRemoved);
 
     connect(&m_deviceModel, &DeviceModel::userGestureChanged,
         [this](const QString &, const QString &, const QString &) {
@@ -126,16 +128,20 @@ void AppController::wireSignals()
             this, &AppController::onThumbWheelInvertChangeRequested);
 }
 
-// Session lifecycle ----------------------------------------------------------
+// Physical device lifecycle -------------------------------------------------
 
-void AppController::onSessionAdded(const QString &deviceId)
+void AppController::onPhysicalDeviceAdded(PhysicalDevice *device)
 {
-    auto *session = m_deviceManager.sessionById(deviceId);
-    if (!session) return;
+    if (!device) return;
 
-    m_deviceModel.addSession(session);
+    const QString deviceId = device->deviceSerial();
+    const bool wasEmpty = m_deviceModel.count() == 0;
+    m_deviceModel.addPhysicalDevice(device);
 
-    connect(session, &DeviceSession::gestureRawXY, this,
+    // Route per-device input events. PhysicalDevice fans in signals from
+    // all its underlying transports, so we connect once here regardless of
+    // how many hidraws back it.
+    connect(device, &PhysicalDevice::gestureRawXY, this,
             [this, deviceId](int16_t dx, int16_t dy) {
         auto &state = m_perDeviceState[deviceId];
         if (state.gestureActive) {
@@ -143,62 +149,53 @@ void AppController::onSessionAdded(const QString &deviceId)
             state.gestureAccumY += dy;
         }
     });
-
-    connect(session, &DeviceSession::divertedButtonPressed, this,
-            [this, deviceId](uint16_t controlId, bool pressed) {
+    connect(device, &PhysicalDevice::divertedButtonPressed, this,
+            [this](uint16_t controlId, bool pressed) {
         onDivertedButtonPressed(controlId, pressed);
     });
-
-    connect(session, &DeviceSession::thumbWheelRotation, this,
-            [this, deviceId](int delta) {
+    connect(device, &PhysicalDevice::thumbWheelRotation, this,
+            [this](int delta) {
         onThumbWheelRotation(delta);
     });
 
-    connect(session, &DeviceSession::batteryChanged, this,
-            [this, deviceId](int, bool) {
-        auto *sel = selectedSession();
-        if (sel && sel->deviceId() == deviceId)
-            emit m_deviceModel.selectedBatteryChanged();
+    // Re-apply profile whenever any transport finishes (re-)enumeration.
+    // PhysicalDevice emits this from its setupComplete fan-in, which
+    // covers both first-time attach and post-reconnect re-enumerate.
+    connect(device, &PhysicalDevice::transportSetupComplete, this,
+            [this, device]() {
+        m_currentDevice = device->descriptor();
+        Profile &p = m_profileEngine.cachedProfile(m_profileEngine.hardwareProfile());
+        qCDebug(lcApp) << "device transport ready, applying profile:"
+                        << m_profileEngine.hardwareProfile();
+        applyProfileToHardware(p);
     });
 
-    connect(session, &DeviceSession::smartShiftChanged, this,
-            [this, deviceId](bool, int) {
-        auto *sel = selectedSession();
-        if (sel && sel->deviceId() == deviceId)
-            emit m_deviceModel.settingsReloaded();
-    });
-
-    connect(session, &DeviceSession::scrollConfigChanged, this,
-            [this, deviceId]() {
-        auto *sel = selectedSession();
-        if (sel && sel->deviceId() == deviceId)
-            emit m_deviceModel.settingsReloaded();
-    });
-
-    if (m_deviceModel.count() == 1)
+    if (wasEmpty && m_deviceModel.count() == 1)
         m_deviceModel.setSelectedIndex(0);
 
-    setupProfileForSession(session);
+    setupProfileForDevice(device);
 }
 
-void AppController::onSessionRemoved(const QString &deviceId)
+void AppController::onPhysicalDeviceRemoved(PhysicalDevice *device)
 {
-    m_deviceModel.removeSession(deviceId);
-    m_perDeviceState.remove(deviceId);
+    const QString deviceId = device ? device->deviceSerial() : QString();
+    m_deviceModel.removePhysicalDevice(device);
+    if (!deviceId.isEmpty())
+        m_perDeviceState.remove(deviceId);
 
     if (m_deviceModel.count() > 0 && m_deviceModel.selectedIndex() < 0)
         m_deviceModel.setSelectedIndex(0);
 }
 
-void AppController::setupProfileForSession(DeviceSession *session)
+void AppController::setupProfileForDevice(PhysicalDevice *device)
 {
-    m_currentDevice = session->descriptor();
+    m_currentDevice = device->descriptor();
 
     const QString configBase =
         QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
     const QString profilesDir = configBase
         + QStringLiteral("/devices/")
-        + session->deviceSerial()
+        + device->deviceSerial()
         + QStringLiteral("/profiles");
 
     QDir().mkpath(profilesDir);
@@ -209,13 +206,13 @@ void AppController::setupProfileForSession(DeviceSession *session)
     if (!QFile::exists(defaultConf)) {
         Profile seed;
         seed.name                = QStringLiteral("Default");
-        seed.dpi                 = session->currentDPI();
-        seed.smartShiftEnabled   = session->smartShiftEnabled();
-        seed.smartShiftThreshold = session->smartShiftThreshold();
-        seed.hiResScroll         = session->scrollHiRes();
-        seed.scrollDirection     = session->scrollInvert()
+        seed.dpi                 = device->currentDPI();
+        seed.smartShiftEnabled   = device->smartShiftEnabled();
+        seed.smartShiftThreshold = device->smartShiftThreshold();
+        seed.hiResScroll         = device->scrollHiRes();
+        seed.scrollDirection     = device->scrollInvert()
             ? QStringLiteral("natural") : QStringLiteral("standard");
-        seed.smoothScrolling     = !session->scrollRatchet();
+        seed.smoothScrolling     = !device->scrollRatchet();
         if (m_currentDevice) {
             const auto controls = m_currentDevice->controls();
             for (int i = 0; i < static_cast<int>(controls.size()) && i < static_cast<int>(seed.buttons.size()); ++i) {
@@ -264,18 +261,24 @@ void AppController::setupProfileForSession(DeviceSession *session)
     }
 
     Profile &p = m_profileEngine.cachedProfile(hwName);
-    qCDebug(lcApp) << "setupProfileForSession: applying profile" << hwName
+    qCDebug(lcApp) << "setupProfileForDevice: applying profile" << hwName
                     << "thumbWheelMode=" << p.thumbWheelMode;
     applyProfileToHardware(p);
 }
 
-DeviceSession* AppController::selectedSession() const
+PhysicalDevice *AppController::selectedDevice() const
 {
     int idx = m_deviceModel.selectedIndex();
-    const auto &sessions = m_deviceModel.sessions();
-    if (idx >= 0 && idx < sessions.size())
-        return sessions[idx];
+    const auto &devices = m_deviceModel.devices();
+    if (idx >= 0 && idx < devices.size())
+        return devices[idx];
     return nullptr;
+}
+
+DeviceSession *AppController::selectedSession() const
+{
+    auto *d = selectedDevice();
+    return d ? d->primary() : nullptr;
 }
 
 // Slot implementations -------------------------------------------------------

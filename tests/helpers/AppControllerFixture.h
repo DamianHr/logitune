@@ -7,6 +7,7 @@
 
 #include "AppController.h"
 #include "DeviceSession.h"
+#include "PhysicalDevice.h"
 #include "ProfileEngine.h"
 #include "ButtonAction.h"
 #include "helpers/TestFixtures.h"
@@ -48,11 +49,20 @@ protected:
         m_device.setupMxControls();
         m_ctrl->m_currentDevice = &m_device;
 
-        // Create a mock DeviceSession and add it to the model so selectedSession() works
+        // Create a mock DeviceSession wrapped in a PhysicalDevice and add it
+        // to the model so selectedSession()/selectedDevice() work.
         auto mockHidraw = std::make_unique<hidpp::HidrawDevice>("/dev/null");
         m_session = new DeviceSession(std::move(mockHidraw), 0xFF, "Bluetooth",
                                        nullptr, m_ctrl.get());
-        m_ctrl->m_deviceModel.addSession(m_session);
+        // Mark the mock session connected so DeviceModel shows its row.
+        // The real enumerateAndSetup would do this after reading state
+        // from the device; tests don't talk to real hardware.
+        m_session->m_connected = true;
+        m_session->m_deviceName = QStringLiteral("Mock Device");
+
+        m_physicalDevice = new PhysicalDevice(QStringLiteral("mock-serial"), m_ctrl.get());
+        m_physicalDevice->attachTransport(m_session);
+        m_ctrl->m_deviceModel.addPhysicalDevice(m_physicalDevice);
         m_ctrl->m_deviceModel.setSelectedIndex(0);
 
         // Set profiles AFTER session selection (setSelectedIndex resets display values)
@@ -222,6 +232,7 @@ protected:
     MockInjector *m_injector = nullptr;
     MockDevice    m_device;
     DeviceSession *m_session = nullptr;
+    PhysicalDevice *m_physicalDevice = nullptr;
     std::unique_ptr<AppController> m_ctrl;
     QString       m_profilesDir;
     QTemporaryDir m_tmpDir;

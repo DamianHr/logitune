@@ -3,6 +3,7 @@ add_library(logitune-core STATIC)
 target_sources(logitune-core PRIVATE
     DeviceManager.cpp
     DeviceSession.cpp
+    PhysicalDevice.cpp
     hidpp/HidppTypes.cpp
     hidpp/HidrawDevice.cpp
     hidpp/Transport.cpp

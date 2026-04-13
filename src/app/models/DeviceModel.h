@@ -1,5 +1,6 @@
 #pragma once
 #include "DeviceSession.h"
+#include "PhysicalDevice.h"
 #include "interfaces/IDesktopIntegration.h"
 #include <QAbstractListModel>
 #include <QMap>
@@ -76,10 +77,14 @@ public:
     void setSelectedIndex(int index);
     QString selectedDeviceId() const;
 
-    // Session management
-    void addSession(DeviceSession *session);
-    void removeSession(const QString &deviceId);
-    const QList<DeviceSession*>& sessions() const;
+    // Physical device management. DeviceModel stores PhysicalDevice pointers
+    // (non-owning — DeviceManager owns). Each PhysicalDevice is one row.
+    // Transport switches are handled internally by PhysicalDevice, so the
+    // carousel row stays stable across Bolt <-> BT.
+    void addPhysicalDevice(PhysicalDevice *device);
+    void removePhysicalDevice(PhysicalDevice *device);
+    bool hasDeviceId(const QString &deviceId) const;
+    const QList<PhysicalDevice *> &devices() const;
     Q_INVOKABLE void moveDevice(int from, int to);
 
     void setDesktopIntegration(IDesktopIntegration *desktop);
@@ -165,11 +170,19 @@ signals:
     void thumbWheelInvertChangeRequested(bool invert);
 
 private:
-    DeviceSession* selectedSession() const;
+    PhysicalDevice *selectedDevice() const;
     void saveDeviceOrder() const;
     QStringList loadDeviceOrder() const;
+    int rowForDevice(PhysicalDevice *device) const;
+    void insertRow(PhysicalDevice *device);
+    void removeRow(PhysicalDevice *device);
+    void refreshRow(PhysicalDevice *device);
 
-    QList<DeviceSession*> m_sessions;
+    // One entry per PhysicalDevice. Transport-switching is handled inside
+    // PhysicalDevice (see src/core/PhysicalDevice.h); DeviceModel just
+    // observes and reflects whatever primary transport is active.
+    QList<PhysicalDevice *> m_devices;
+
     int m_selectedIndex = -1;
 
     IDesktopIntegration *m_desktop = nullptr;

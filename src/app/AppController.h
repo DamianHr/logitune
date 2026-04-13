@@ -2,6 +2,7 @@
 #include "DeviceFetcher.h"
 #include "DeviceManager.h"
 #include "DeviceSession.h"
+#include "PhysicalDevice.h"
 #include "DeviceRegistry.h"
 #include "interfaces/IDevice.h"
 #include "interfaces/IDesktopIntegration.h"
@@ -45,8 +46,8 @@ private slots:
     void onWindowFocusChanged(const QString &wmClass, const QString &title);
     void onTabSwitched(const QString &profileName);
     void onDisplayProfileChanged(const Profile &profile);
-    void onSessionAdded(const QString &deviceId);
-    void onSessionRemoved(const QString &deviceId);
+    void onPhysicalDeviceAdded(PhysicalDevice *device);
+    void onPhysicalDeviceRemoved(PhysicalDevice *device);
     void onGestureRawXY(int16_t dx, int16_t dy);
     void onDivertedButtonPressed(uint16_t controlId, bool pressed);
     void onThumbWheelRotation(int delta);
@@ -62,8 +63,9 @@ private:
     void pushDisplayValues(const Profile &p);
     void restoreButtonModelFromProfile(const Profile &p);
     void applyProfileToHardware(const Profile &p);
-    void setupProfileForSession(DeviceSession *session);
-    DeviceSession* selectedSession() const;
+    void setupProfileForDevice(PhysicalDevice *device);
+    PhysicalDevice *selectedDevice() const;
+    DeviceSession *selectedSession() const;  // convenience — selectedDevice()->primary()
     QString buttonActionToName(const ButtonAction &ba) const;
     ButtonAction buttonEntryToAction(const QString &actionType, const QString &actionName) const;
 

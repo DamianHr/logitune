@@ -101,6 +101,20 @@ DeviceSession* DeviceManager::sessionByPid(uint16_t pid) const
     return nullptr;
 }
 
+QList<PhysicalDevice *> DeviceManager::physicalDevices() const
+{
+    QList<PhysicalDevice *> result;
+    for (const auto &p : m_physicalDevices)
+        result.append(p.second.get());
+    return result;
+}
+
+PhysicalDevice *DeviceManager::physicalDeviceBySerial(const QString &serial) const
+{
+    auto it = m_physicalDevices.find(serial);
+    return it != m_physicalDevices.end() ? it->second.get() : nullptr;
+}
+
 const IDevice* DeviceManager::activeDevice() const
 {
     if (!m_sessions.empty())
@@ -240,18 +254,33 @@ void DeviceManager::onUdevEvent(const QString &action, const QString &devNode)
 
 void DeviceManager::removeSessionByDevNode(const QString &devNode)
 {
-    auto it = m_devNodeToSessionId.find(devNode);
-    if (it == m_devNodeToSessionId.end())
+    auto it = m_devNodeToSession.find(devNode);
+    if (it == m_devNodeToSession.end())
         return;
 
-    QString sessionId = it.value();
-    m_devNodeToSessionId.erase(it);
+    DeviceSession *target = it.value();
+    m_devNodeToSession.erase(it);
+
+    const QString serial = target->deviceId();
+
+    // Detach this transport from its PhysicalDevice. If it was the last
+    // transport for that device, destroy the PhysicalDevice (after emitting
+    // physicalDeviceRemoved so listeners can drop their references while
+    // the pointer is still valid).
+    auto pdIt = m_physicalDevices.find(serial);
+    if (pdIt != m_physicalDevices.end()) {
+        PhysicalDevice *pd = pdIt->second.get();
+        const bool empty = pd->detachTransport(target);
+        if (empty) {
+            emit physicalDeviceRemoved(pd);
+            m_physicalDevices.erase(pdIt);
+        }
+    }
 
     for (auto sit = m_sessions.begin(); sit != m_sessions.end(); ++sit) {
-        if ((*sit)->deviceId() == sessionId) {
+        if (sit->get() == target) {
             (*sit)->disconnectCleanup();
             m_sessions.erase(sit);
-            emit sessionRemoved(sessionId);
             return;
         }
     }
@@ -264,7 +293,7 @@ void DeviceManager::removeSessionByDevNode(const QString &devNode)
 void DeviceManager::probeDevice(const QString &devNode)
 {
     // Skip if we already have a session from this devNode
-    if (m_devNodeToSessionId.contains(devNode))
+    if (m_devNodeToSession.contains(devNode))
         return;
 
     qCDebug(lcDevice) << "probing" << devNode;
@@ -429,11 +458,21 @@ void DeviceManager::probeDevice(const QString &devNode)
     // Enumerate features and read initial state
     sessionPtr->enumerateAndSetup();
 
-    QString sessionId = sessionPtr->deviceId();
-    m_devNodeToSessionId[devNode] = sessionId;
+    QString serial = sessionPtr->deviceId();
+    m_devNodeToSession[devNode] = sessionPtr;
     m_sessions.push_back(std::move(session));
 
-    emit sessionAdded(sessionId);
+    // Attach transport to its PhysicalDevice (create if first seen).
+    auto pdIt = m_physicalDevices.find(serial);
+    if (pdIt == m_physicalDevices.end()) {
+        auto pd = std::make_unique<PhysicalDevice>(serial, this);
+        pd->attachTransport(sessionPtr);
+        PhysicalDevice *pdPtr = pd.get();
+        m_physicalDevices.emplace(serial, std::move(pd));
+        emit physicalDeviceAdded(pdPtr);
+    } else {
+        pdIt->second->attachTransport(sessionPtr);
+    }
 }
 
 } // namespace logitune

@@ -26,38 +26,38 @@ DeviceModel::DeviceModel(QObject *parent)
 int DeviceModel::rowCount(const QModelIndex &parent) const
 {
     if (parent.isValid()) return 0;
-    return m_sessions.size();
+    return m_devices.size();
 }
 
 QVariant DeviceModel::data(const QModelIndex &index, int role) const
 {
-    if (!index.isValid() || index.row() < 0 || index.row() >= m_sessions.size())
+    if (!index.isValid() || index.row() < 0 || index.row() >= m_devices.size())
         return {};
 
-    auto *session = m_sessions[index.row()];
+    auto *device = m_devices[index.row()];
 
     switch (role) {
     case DeviceIdRole:
-        return session->deviceId();
+        return device->deviceSerial();
     case DeviceNameRole:
-        return session->deviceName();
+        return device->deviceName();
     case FrontImageRole: {
-        if (!session->descriptor()) return QString();
-        QString path = session->descriptor()->frontImagePath();
+        if (!device->descriptor()) return QString();
+        QString path = device->descriptor()->frontImagePath();
         if (!path.isEmpty() && !path.startsWith("qrc:") && !path.startsWith("file:"))
             return "file://" + path;
         return path;
     }
     case BatteryLevelRole:
-        return session->batteryLevel();
+        return device->batteryLevel();
     case BatteryChargingRole:
-        return session->batteryCharging();
+        return device->batteryCharging();
     case ConnectionTypeRole:
-        return session->connectionType();
+        return device->connectionType();
     case StatusRole: {
-        if (!session->descriptor())
+        if (!device->descriptor())
             return QStringLiteral("unknown");
-        auto* json = dynamic_cast<const JsonDevice*>(session->descriptor());
+        auto* json = dynamic_cast<const JsonDevice*>(device->descriptor());
         if (!json) return QStringLiteral("implemented");
         switch (json->status()) {
         case JsonDevice::Status::Implemented:       return QStringLiteral("implemented");
@@ -94,7 +94,7 @@ QHash<int, QByteArray> DeviceModel::roleNames() const
 
 int DeviceModel::count() const
 {
-    return m_sessions.size();
+    return m_devices.size();
 }
 
 int DeviceModel::selectedIndex() const
@@ -104,7 +104,7 @@ int DeviceModel::selectedIndex() const
 
 void DeviceModel::setSelectedIndex(int index)
 {
-    if (index < -1 || index >= m_sessions.size())
+    if (index < -1 || index >= m_devices.size())
         return;
     if (m_selectedIndex == index)
         return;
@@ -113,38 +113,82 @@ void DeviceModel::setSelectedIndex(int index)
     m_selectedIndex = index;
 
     // Update isSelected role for old and new
-    if (oldIndex >= 0 && oldIndex < m_sessions.size())
+    if (oldIndex >= 0 && oldIndex < m_devices.size())
         emit dataChanged(this->index(oldIndex), this->index(oldIndex), {IsSelectedRole});
-    if (index >= 0 && index < m_sessions.size())
+    if (index >= 0 && index < m_devices.size())
         emit dataChanged(this->index(index), this->index(index), {IsSelectedRole});
 
     m_hasDisplayValues = false;
     emit selectedChanged();
     emit selectedBatteryChanged();
     emit settingsReloaded();
+    emit deviceConnectedChanged();
 }
 
 QString DeviceModel::selectedDeviceId() const
 {
-    auto *s = selectedSession();
-    return s ? s->deviceId() : QString();
+    auto *d = selectedDevice();
+    return d ? d->deviceSerial() : QString();
 }
 
 // ---------------------------------------------------------------------------
-// Session management
+// Physical device management
 // ---------------------------------------------------------------------------
 
-void DeviceModel::addSession(DeviceSession *session)
+void DeviceModel::addPhysicalDevice(PhysicalDevice *device)
 {
-    // Determine insertion position based on saved order
+    if (!device)
+        return;
+
+    // Track last-seen connection state per device so we can distinguish
+    // "attribute update" (battery tick etc.) from "connection transition"
+    // (connect/disconnect). Shared_ptr so the state survives capture by
+    // the lambda and persists across multiple invocations.
+    auto lastConnected = std::make_shared<bool>(false);
+    connect(device, &PhysicalDevice::stateChanged, this,
+            [this, device, lastConnected]() {
+        const bool now = device->isConnected();
+        const bool was = *lastConnected;
+        *lastConnected = now;
+
+        if (now && !was) {
+            // disconnected -> connected: show the row
+            insertRow(device);
+        } else if (!now && was) {
+            // connected -> disconnected: hide the row. PhysicalDevice is
+            // still alive in DeviceManager; AppController keeps per-device
+            // state. We just don't paint a carousel card for an offline
+            // mouse.
+            removeRow(device);
+        } else {
+            // state change while the visibility is unchanged: refresh
+            refreshRow(device);
+        }
+    });
+
+    // If the device is already connected at the time of addition, insert
+    // its row immediately. Otherwise we wait for the first connect
+    // transition in the stateChanged handler.
+    if (device->isConnected()) {
+        *lastConnected = true;
+        insertRow(device);
+    }
+}
+
+void DeviceModel::insertRow(PhysicalDevice *device)
+{
+    if (m_devices.contains(device))
+        return;
+
+    // Determine insertion position from saved order.
     QStringList savedOrder = loadDeviceOrder();
-    int insertAt = m_sessions.size();
+    int insertAt = m_devices.size();
     if (!savedOrder.isEmpty()) {
-        int savedPos = savedOrder.indexOf(session->deviceId());
+        int savedPos = savedOrder.indexOf(device->deviceSerial());
         if (savedPos >= 0) {
             insertAt = 0;
-            for (int i = 0; i < m_sessions.size(); ++i) {
-                int existingPos = savedOrder.indexOf(m_sessions[i]->deviceId());
+            for (int i = 0; i < m_devices.size(); ++i) {
+                int existingPos = savedOrder.indexOf(m_devices[i]->deviceSerial());
                 if (existingPos < 0 || existingPos < savedPos)
                     insertAt = i + 1;
             }
@@ -152,20 +196,67 @@ void DeviceModel::addSession(DeviceSession *session)
     }
 
     beginInsertRows(QModelIndex(), insertAt, insertAt);
-    m_sessions.insert(insertAt, session);
+    m_devices.insert(insertAt, device);
     endInsertRows();
     emit countChanged();
+
+    // Auto-select the first device. Also emit deviceConnectedChanged
+    // because going from 0 devices to 1 is a "connected" transition for
+    // whatever QML is bound to the selected-device flat properties.
+    if (m_devices.size() == 1) {
+        m_selectedIndex = 0;
+        emit selectedChanged();
+        emit selectedBatteryChanged();
+        emit settingsReloaded();
+        emit deviceConnectedChanged();
+    }
+}
+
+void DeviceModel::removeRow(PhysicalDevice *device)
+{
+    const int row = rowForDevice(device);
+    if (row < 0) return;
+
+    const bool wasSelected = (row == m_selectedIndex);
+    beginRemoveRows(QModelIndex(), row, row);
+    m_devices.removeAt(row);
+    endRemoveRows();
+
+    if (m_selectedIndex >= m_devices.size())
+        m_selectedIndex = m_devices.size() - 1;
+    if (m_devices.isEmpty())
+        m_selectedIndex = -1;
+
+    emit countChanged();
+    if (wasSelected) {
+        emit selectedChanged();
+        emit selectedBatteryChanged();
+        emit settingsReloaded();
+        emit deviceConnectedChanged();
+    }
+}
+
+void DeviceModel::refreshRow(PhysicalDevice *device)
+{
+    const int row = rowForDevice(device);
+    if (row < 0) return;
+    emit dataChanged(index(row), index(row));
+    if (row == m_selectedIndex) {
+        emit selectedChanged();
+        emit selectedBatteryChanged();
+        emit settingsReloaded();
+    }
 }
 
 void DeviceModel::moveDevice(int from, int to)
 {
-    if (from < 0 || from >= m_sessions.size()) return;
-    if (to < 0 || to >= m_sessions.size()) return;
+    if (from < 0 || from >= m_devices.size()) return;
+    if (to < 0 || to >= m_devices.size()) return;
     if (from == to) return;
 
     int destRow = to > from ? to + 1 : to;
     beginMoveRows(QModelIndex(), from, from, QModelIndex(), destRow);
-    m_sessions.move(from, to);
+    m_devices.move(from, to);
     endMoveRows();
 
     if (m_selectedIndex == from)
@@ -181,8 +272,8 @@ void DeviceModel::moveDevice(int from, int to)
 void DeviceModel::saveDeviceOrder() const
 {
     QJsonArray order;
-    for (auto *session : m_sessions)
-        order.append(session->deviceId());
+    for (auto *device : m_devices)
+        order.append(device->deviceSerial());
 
     QJsonObject root;
     root["order"] = order;
@@ -208,39 +299,45 @@ QStringList DeviceModel::loadDeviceOrder() const
     return result;
 }
 
-void DeviceModel::removeSession(const QString &deviceId)
+void DeviceModel::removePhysicalDevice(PhysicalDevice *device)
 {
-    for (int i = 0; i < m_sessions.size(); ++i) {
-        if (m_sessions[i]->deviceId() == deviceId) {
-            beginRemoveRows(QModelIndex(), i, i);
-            m_sessions.removeAt(i);
-            endRemoveRows();
-
-            if (m_selectedIndex >= m_sessions.size())
-                m_selectedIndex = m_sessions.size() - 1;
-            if (m_sessions.isEmpty())
-                m_selectedIndex = -1;
-
-            emit countChanged();
-            emit selectedChanged();
-            return;
-        }
-    }
+    // If the device is currently visible in the carousel, remove its row.
+    // If it wasn't visible (was hidden because offline), there's nothing
+    // to do — the stateChanged lambda will auto-disconnect when the
+    // PhysicalDevice is destroyed.
+    if (rowForDevice(device) >= 0)
+        removeRow(device);
 }
 
-const QList<DeviceSession*>& DeviceModel::sessions() const
+bool DeviceModel::hasDeviceId(const QString &deviceId) const
 {
-    return m_sessions;
+    for (auto *d : m_devices)
+        if (d->deviceSerial() == deviceId)
+            return true;
+    return false;
+}
+
+const QList<PhysicalDevice *> &DeviceModel::devices() const
+{
+    return m_devices;
+}
+
+int DeviceModel::rowForDevice(PhysicalDevice *device) const
+{
+    for (int i = 0; i < m_devices.size(); ++i)
+        if (m_devices[i] == device)
+            return i;
+    return -1;
 }
 
 // ---------------------------------------------------------------------------
 // Helper
 // ---------------------------------------------------------------------------
 
-DeviceSession* DeviceModel::selectedSession() const
+PhysicalDevice *DeviceModel::selectedDevice() const
 {
-    if (m_selectedIndex >= 0 && m_selectedIndex < m_sessions.size())
-        return m_sessions[m_selectedIndex];
+    if (m_selectedIndex >= 0 && m_selectedIndex < m_devices.size())
+        return m_devices[m_selectedIndex];
     return nullptr;
 }
 
@@ -276,25 +373,25 @@ QVariantList DeviceModel::runningApplications() const
 
 bool DeviceModel::deviceConnected() const
 {
-    auto *s = selectedSession();
+    auto *s = selectedDevice();
     return s ? s->isConnected() : false;
 }
 
 QString DeviceModel::deviceName() const
 {
-    auto *s = selectedSession();
+    auto *s = selectedDevice();
     return s ? s->deviceName() : QString();
 }
 
 int DeviceModel::batteryLevel() const
 {
-    auto *s = selectedSession();
+    auto *s = selectedDevice();
     return s ? s->batteryLevel() : 0;
 }
 
 bool DeviceModel::batteryCharging() const
 {
-    auto *s = selectedSession();
+    auto *s = selectedDevice();
     return s ? s->batteryCharging() : false;
 }
 
@@ -308,46 +405,46 @@ QString DeviceModel::batteryStatusText() const
 
 QString DeviceModel::connectionType() const
 {
-    auto *s = selectedSession();
+    auto *s = selectedDevice();
     return s ? s->connectionType() : QString();
 }
 
 int DeviceModel::currentDPI() const
 {
     if (m_hasDisplayValues) return m_displayDpi;
-    auto *s = selectedSession();
+    auto *s = selectedDevice();
     return s ? s->currentDPI() : 1000;
 }
 
 int DeviceModel::minDPI() const
 {
-    auto *s = selectedSession();
+    auto *s = selectedDevice();
     return s ? s->minDPI() : 200;
 }
 
 int DeviceModel::maxDPI() const
 {
-    auto *s = selectedSession();
+    auto *s = selectedDevice();
     return s ? s->maxDPI() : 8000;
 }
 
 int DeviceModel::dpiStep() const
 {
-    auto *s = selectedSession();
+    auto *s = selectedDevice();
     return s ? s->dpiStep() : 50;
 }
 
 bool DeviceModel::smartShiftEnabled() const
 {
     if (m_hasDisplayValues) return m_displaySmartShiftEnabled;
-    auto *s = selectedSession();
+    auto *s = selectedDevice();
     return s ? s->smartShiftEnabled() : true;
 }
 
 int DeviceModel::smartShiftThreshold() const
 {
     if (m_hasDisplayValues) return m_displaySmartShiftThreshold;
-    auto *s = selectedSession();
+    auto *s = selectedDevice();
     return s ? s->smartShiftThreshold() : 128;
 }
 
@@ -358,7 +455,7 @@ QString DeviceModel::activeProfileName() const
 
 QString DeviceModel::frontImage() const
 {
-    auto *s = selectedSession();
+    auto *s = selectedDevice();
     if (s && s->descriptor()) {
         QString path = s->descriptor()->frontImagePath();
         if (!path.isEmpty() && !path.startsWith("qrc:") && !path.startsWith("file:"))
@@ -370,7 +467,7 @@ QString DeviceModel::frontImage() const
 
 QString DeviceModel::sideImage() const
 {
-    auto *s = selectedSession();
+    auto *s = selectedDevice();
     if (s && s->descriptor()) {
         QString path = s->descriptor()->sideImagePath();
         if (!path.isEmpty() && !path.startsWith("qrc:") && !path.startsWith("file:"))
@@ -382,7 +479,7 @@ QString DeviceModel::sideImage() const
 
 QString DeviceModel::backImage() const
 {
-    auto *s = selectedSession();
+    auto *s = selectedDevice();
     if (s && s->descriptor()) {
         QString path = s->descriptor()->backImagePath();
         if (!path.isEmpty() && !path.startsWith("qrc:") && !path.startsWith("file:"))
@@ -395,7 +492,7 @@ QString DeviceModel::backImage() const
 QVariantList DeviceModel::buttonHotspots() const
 {
     QVariantList result;
-    auto *s = selectedSession();
+    auto *s = selectedDevice();
     if (!s || !s->descriptor())
         return result;
 
@@ -433,7 +530,7 @@ QVariantList DeviceModel::buttonHotspots() const
 QVariantList DeviceModel::scrollHotspots() const
 {
     QVariantList result;
-    auto *s = selectedSession();
+    auto *s = selectedDevice();
     if (!s || !s->descriptor())
         return result;
 
@@ -453,7 +550,7 @@ QVariantList DeviceModel::scrollHotspots() const
 QVariantList DeviceModel::controlDescriptors() const
 {
     QVariantList result;
-    auto *s = selectedSession();
+    auto *s = selectedDevice();
     if (!s || !s->descriptor())
         return result;
 
@@ -472,7 +569,7 @@ QVariantList DeviceModel::controlDescriptors() const
 QVariantList DeviceModel::easySwitchSlotPositions() const
 {
     QVariantList result;
-    auto *s = selectedSession();
+    auto *s = selectedDevice();
     if (!s || !s->descriptor())
         return result;
 
@@ -488,7 +585,7 @@ QVariantList DeviceModel::easySwitchSlotPositions() const
 
 bool DeviceModel::smoothScrollSupported() const
 {
-    auto *s = selectedSession();
+    auto *s = selectedDevice();
     if (s && s->descriptor())
         return s->descriptor()->features().smoothScroll;
     return true;
@@ -496,13 +593,13 @@ bool DeviceModel::smoothScrollSupported() const
 
 QString DeviceModel::deviceSerial() const
 {
-    auto *s = selectedSession();
+    auto *s = selectedDevice();
     return s ? s->deviceSerial() : QStringLiteral("Unknown");
 }
 
 QString DeviceModel::firmwareVersion() const
 {
-    auto *s = selectedSession();
+    auto *s = selectedDevice();
     if (s && !s->firmwareVersion().isEmpty())
         return s->firmwareVersion();
     return QStringLiteral("Unknown");
@@ -510,7 +607,7 @@ QString DeviceModel::firmwareVersion() const
 
 int DeviceModel::activeSlot() const
 {
-    auto *s = selectedSession();
+    auto *s = selectedDevice();
     if (!s || !s->isConnected())
         return -1;
     int host = s->currentHost();
@@ -521,7 +618,7 @@ int DeviceModel::activeSlot() const
 
 bool DeviceModel::isSlotPaired(int slot) const
 {
-    auto *s = selectedSession();
+    auto *s = selectedDevice();
     if (!s) return false;
     return s->isHostPaired(slot - 1);
 }
@@ -554,14 +651,14 @@ void DeviceModel::setSmartShift(bool enabled, int threshold)
 bool DeviceModel::scrollHiRes() const
 {
     if (m_hasDisplayValues) return m_displayScrollHiRes;
-    auto *s = selectedSession();
+    auto *s = selectedDevice();
     return s ? s->scrollHiRes() : false;
 }
 
 bool DeviceModel::scrollInvert() const
 {
     if (m_hasDisplayValues) return m_displayScrollInvert;
-    auto *s = selectedSession();
+    auto *s = selectedDevice();
     return s ? s->scrollInvert() : false;
 }
 
@@ -573,14 +670,14 @@ void DeviceModel::setScrollConfig(bool hiRes, bool invert)
 QString DeviceModel::thumbWheelMode() const
 {
     if (m_hasDisplayValues) return m_displayThumbWheelMode;
-    auto *s = selectedSession();
+    auto *s = selectedDevice();
     return s ? s->thumbWheelMode() : "scroll";
 }
 
 bool DeviceModel::thumbWheelInvert() const
 {
     if (m_hasDisplayValues) return m_displayThumbWheelInvert;
-    auto *s = selectedSession();
+    auto *s = selectedDevice();
     return s ? s->thumbWheelInvert() : false;
 }
 
@@ -661,7 +758,7 @@ void DeviceModel::setActiveWmClass(const QString &wmClass)
 
 QString DeviceModel::deviceStatus() const
 {
-    auto *s = selectedSession();
+    auto *s = selectedDevice();
     if (!s || !s->descriptor())
         return QStringLiteral("unknown");
     auto* json = dynamic_cast<const JsonDevice*>(s->descriptor());

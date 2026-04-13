@@ -1,9 +1,11 @@
 #pragma once
 #include "DeviceSession.h"
+#include "PhysicalDevice.h"
 #include <QMap>
 #include <QObject>
 #include <QSocketNotifier>
 #include <QStringList>
+#include <map>
 #include <memory>
 #include <vector>
 
@@ -28,17 +30,26 @@ public:
     static uint8_t deviceIndexForDirect();
     static uint8_t deviceIndexForReceiver(int slot);
 
-    // Session access
+    // Session access (transport layer)
     const std::vector<std::unique_ptr<DeviceSession>>& sessions() const;
     DeviceSession* sessionById(const QString &id) const;
     DeviceSession* sessionByPid(uint16_t pid) const;
+
+    // Physical device access (logical layer, one per unique serial).
+    QList<PhysicalDevice *> physicalDevices() const;
+    PhysicalDevice *physicalDeviceBySerial(const QString &serial) const;
 
     // Backward compat — returns first session's descriptor
     const IDevice* activeDevice() const;
 
 signals:
-    void sessionAdded(const QString &deviceId);
-    void sessionRemoved(const QString &deviceId);
+    // Physical-device lifecycle. One PhysicalDevice per unique HID++ serial.
+    // A transport switch (Bolt -> BT) does NOT trigger these — it's handled
+    // internally by PhysicalDevice attaching/detaching transports. These
+    // only fire when a device is first seen or completely goes away.
+    void physicalDeviceAdded(PhysicalDevice *device);
+    void physicalDeviceRemoved(PhysicalDevice *device);
+
     void unknownDeviceDetected(uint16_t pid);
 
 private slots:
@@ -53,8 +64,14 @@ private:
     DeviceRegistry *m_registry = nullptr;
     std::vector<std::unique_ptr<DeviceSession>> m_sessions;
 
-    // Track which devNode each session came from
-    QMap<QString, QString> m_devNodeToSessionId;
+    // Owns PhysicalDevice wrappers keyed by serial. Created lazily on
+    // first transport attach, destroyed when the last transport detaches.
+    // std::map (not QMap) because QMap requires copyable value types and
+    // unique_ptr is move-only.
+    std::map<QString, std::unique_ptr<PhysicalDevice>> m_physicalDevices;
+
+    // Track which specific session came from which devNode.
+    QMap<QString, DeviceSession *> m_devNodeToSession;
 
     // Transport failover
     QStringList m_availableTransports;

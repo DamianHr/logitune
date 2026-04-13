@@ -33,6 +33,7 @@ add_executable(logitune-tests
     test_profile_switch_behavior.cpp
     test_notification_filtering.cpp
     test_device_session.cpp
+    test_physical_device.cpp
     test_settings_change_behavior.cpp
     test_desktop_factory.cpp
     test_profile_apply_behavior.cpp

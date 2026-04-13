@@ -13,6 +13,8 @@
 #include <memory>
 #include <optional>
 
+namespace logitune::test { class AppControllerFixture; }
+
 namespace logitune {
 
 class DeviceRegistry;
@@ -20,6 +22,7 @@ class IDevice;
 
 class DeviceSession : public QObject {
     Q_OBJECT
+    friend class test::AppControllerFixture;
 
 public:
     DeviceSession(std::unique_ptr<hidpp::HidrawDevice> device,
@@ -79,6 +82,11 @@ public:
     hidpp::Transport *transport() const;
     uint8_t deviceIndex() const;
     hidpp::HidrawDevice *device() const;
+
+    // Test hooks — let tests inject state without a real HID++ conversation.
+    // Not intended for production use; called exclusively from test fixtures.
+    void setConnectedForTest(bool v) { m_connected = v; }
+    void setDeviceNameForTest(const QString &n) { m_deviceName = n; }
 
 signals:
     void setupComplete();
