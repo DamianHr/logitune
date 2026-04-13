@@ -154,3 +154,52 @@ def test_unknown_slot_name_raises():
     with pytest.raises(slots.UnknownSlotName) as exc:
         slots.parse(bogus)
     assert "SLOT_NAME_NONEXISTENT_BUTTON" in str(exc.value)
+
+
+from optionsplus_extractor import canonicalize
+from optionsplus_extractor.slots import (
+    ButtonSlot, ScrollSlot, EasySwitchSlot, THUMBWHEEL_CID,
+)
+
+
+def test_canonicalize_buttons_sorts_by_cid_thumb_last():
+    raw = [
+        ButtonSlot(cid=0x00C4, name="Shift",   action_type="smartshift-toggle", configurable=True, x_pct=0.8, y_pct=0.3),
+        ButtonSlot(cid=THUMBWHEEL_CID, name="Thumb wheel", action_type="default", configurable=True, x_pct=0.5, y_pct=0.5),
+        ButtonSlot(cid=0x0052, name="Middle",  action_type="default", configurable=True, x_pct=0.7, y_pct=0.2),
+        ButtonSlot(cid=0x0056, name="Forward", action_type="default", configurable=True, x_pct=0.5, y_pct=0.6),
+        ButtonSlot(cid=0x0053, name="Back",    action_type="default", configurable=True, x_pct=0.5, y_pct=0.7),
+        ButtonSlot(cid=0x00C3, name="Gesture", action_type="gesture-trigger", configurable=True, x_pct=0.1, y_pct=0.6),
+    ]
+    sorted_ = canonicalize.sort_buttons(raw)
+    cids = [b.cid for b in sorted_]
+    assert cids == [0x0052, 0x0053, 0x0056, 0x00C3, 0x00C4, THUMBWHEEL_CID]
+
+
+def test_canonicalize_scroll_sorts_by_kind():
+    raw = [
+        ScrollSlot(kind="pointer",     x_pct=0.83, y_pct=0.54),
+        ScrollSlot(kind="scrollwheel", x_pct=0.73, y_pct=0.16),
+        ScrollSlot(kind="thumbwheel",  x_pct=0.55, y_pct=0.51),
+    ]
+    sorted_ = canonicalize.sort_scroll(raw)
+    assert [s.kind for s in sorted_] == ["scrollwheel", "thumbwheel", "pointer"]
+
+
+def test_canonicalize_scroll_handles_missing_kind():
+    raw = [
+        ScrollSlot(kind="pointer",     x_pct=0.83, y_pct=0.54),
+        ScrollSlot(kind="scrollwheel", x_pct=0.73, y_pct=0.16),
+    ]
+    sorted_ = canonicalize.sort_scroll(raw)
+    assert [s.kind for s in sorted_] == ["scrollwheel", "pointer"]
+
+
+def test_canonicalize_easyswitch_keeps_first_three():
+    raw = [
+        EasySwitchSlot(index=3, x_pct=0.3, y_pct=0.3),
+        EasySwitchSlot(index=1, x_pct=0.1, y_pct=0.1),
+        EasySwitchSlot(index=2, x_pct=0.2, y_pct=0.2),
+    ]
+    sorted_ = canonicalize.sort_easyswitch(raw)
+    assert [s.index for s in sorted_] == [1, 2, 3]
