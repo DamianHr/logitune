@@ -1,5 +1,6 @@
 #include "DeviceModel.h"
 #include "interfaces/IDevice.h"
+#include "devices/JsonDevice.h"
 #include "desktop/GnomeDesktop.h"
 #include "logging/LogManager.h"
 #include <QTimer>
@@ -124,23 +125,35 @@ QString DeviceModel::activeProfileName() const
 
 QString DeviceModel::frontImage() const
 {
-    if (m_dm && m_dm->activeDevice())
-        return m_dm->activeDevice()->frontImagePath();
-    return QStringLiteral("qrc:/Logitune/qml/assets/mx-master-3s.png");
+    if (m_dm && m_dm->activeDevice()) {
+        QString path = m_dm->activeDevice()->frontImagePath();
+        if (!path.isEmpty() && !path.startsWith("qrc:") && !path.startsWith("file:"))
+            return "file://" + path;
+        return path;
+    }
+    return {};
 }
 
 QString DeviceModel::sideImage() const
 {
-    if (m_dm && m_dm->activeDevice())
-        return m_dm->activeDevice()->sideImagePath();
-    return QStringLiteral("qrc:/Logitune/qml/assets/mx-master-3s-side.png");
+    if (m_dm && m_dm->activeDevice()) {
+        QString path = m_dm->activeDevice()->sideImagePath();
+        if (!path.isEmpty() && !path.startsWith("qrc:") && !path.startsWith("file:"))
+            return "file://" + path;
+        return path;
+    }
+    return {};
 }
 
 QString DeviceModel::backImage() const
 {
-    if (m_dm && m_dm->activeDevice())
-        return m_dm->activeDevice()->backImagePath();
-    return QStringLiteral("qrc:/Logitune/qml/assets/mx-master-3s-back.png");
+    if (m_dm && m_dm->activeDevice()) {
+        QString path = m_dm->activeDevice()->backImagePath();
+        if (!path.isEmpty() && !path.startsWith("qrc:") && !path.startsWith("file:"))
+            return "file://" + path;
+        return path;
+    }
+    return {};
 }
 
 QVariantList DeviceModel::buttonHotspots() const
@@ -402,5 +415,20 @@ void DeviceModel::setActiveWmClass(const QString &wmClass)
     emit activeWmClassChanged();
 }
 
+QString DeviceModel::deviceStatus() const
+{
+    if (!m_dm || !m_dm->activeDevice())
+        return QStringLiteral("unknown");
+    auto* json = dynamic_cast<const JsonDevice*>(m_dm->activeDevice());
+    if (!json)
+        return QStringLiteral("implemented");
+    switch (json->status()) {
+    case JsonDevice::Status::Implemented:       return QStringLiteral("implemented");
+    case JsonDevice::Status::CommunityVerified: return QStringLiteral("community-verified");
+    case JsonDevice::Status::CommunityLocal:    return QStringLiteral("community-local");
+    case JsonDevice::Status::Placeholder:       return QStringLiteral("placeholder");
+    }
+    return QStringLiteral("unknown");
+}
 
 } // namespace logitune
