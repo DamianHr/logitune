@@ -27,20 +27,25 @@ import shutil
 import sys
 
 SLOT_NAME_MAP = {
-    "SLOT_NAME_MIDDLE_BUTTON": ("Middle click", "default", True),
-    "SLOT_NAME_BACK_BUTTON": ("Back", "default", True),
-    "SLOT_NAME_FORWARD_BUTTON": ("Forward", "default", True),
-    "SLOT_NAME_GESTURE_BUTTON": ("Gesture button", "gesture-trigger", True),
-    "SLOT_NAME_DPI_BUTTON": ("DPI button", "default", True),
-    "SLOT_NAME_LEFT_SCROLL_BUTTON": ("Shift wheel mode", "smartshift-toggle", True),
-    "SLOT_NAME_SIDE_BUTTON_TOP": ("Top button", "default", True),
-    "SLOT_NAME_SIDE_BUTTON_BOTTOM": ("Bottom button", "default", True),
+    "SLOT_NAME_MIDDLE_BUTTON":       ("Middle click",     "default",           True),
+    "SLOT_NAME_BACK_BUTTON":         ("Back",              "default",           True),
+    "SLOT_NAME_FORWARD_BUTTON":      ("Forward",           "default",           True),
+    "SLOT_NAME_GESTURE_BUTTON":      ("Gesture button",    "gesture-trigger",   True),
+    "SLOT_NAME_DPI_BUTTON":          ("DPI button",        "default",           True),
+    "SLOT_NAME_LEFT_SCROLL_BUTTON":  ("Shift wheel mode",  "smartshift-toggle", True),
+    "SLOT_NAME_MODESHIFT_BUTTON":    ("Shift wheel mode",  "smartshift-toggle", True),
+    "SLOT_NAME_SIDE_BUTTON_TOP":     ("Top button",        "default",           True),
+    "SLOT_NAME_SIDE_BUTTON_BOTTOM":  ("Bottom button",     "default",           True),
+    "SLOT_NAME_THUMBWHEEL":          ("Thumb wheel",       "default",           True),
 }
 
-# Left/right clicks are always present but not in metadata
+# Left/right clicks are always present but not in metadata. Field names must
+# match ControlDescriptor JSON keys parsed by src/core/devices/JsonDevice.cpp
+# (controlId / buttonIndex / defaultName / defaultActionType). Mismatches are
+# silently skipped at load time.
 DEFAULT_CONTROLS = [
-    {"cid": "0x0050", "index": 0, "name": "Left click", "defaultAction": "default", "configurable": False},
-    {"cid": "0x0051", "index": 1, "name": "Right click", "defaultAction": "default", "configurable": False},
+    {"controlId": "0x0050", "buttonIndex": 0, "defaultName": "Left click",  "defaultActionType": "default", "configurable": False},
+    {"controlId": "0x0051", "buttonIndex": 1, "defaultName": "Right click", "defaultActionType": "default", "configurable": False},
 ]
 
 
@@ -49,11 +54,28 @@ def slugify(name):
 
 
 def parse_cid_from_slot_id(slot_id):
-    """Extract CID from slot ID suffix like 'mx-vertical-eb020_c82' -> 0x0052."""
+    """Extract CID from slot ID suffix like 'mx-vertical-eb020_c82' -> 0x0052.
+
+    Slot IDs encode the CID as a decimal suffix after `_c`. Returns None for
+    slots that don't match this pattern (e.g. thumb-wheel / gesture zones).
+    """
     match = re.search(r'_c(\d+)$', slot_id)
     if match:
         return int(match.group(1))
     return None
+
+
+# Virtual CID used for the thumb wheel. Matches the synthetic entry the MX
+# Master descriptors use so thumb-wheel notifications have a controls slot
+# to bind to — the hardware doesn't expose a real CID for it.
+THUMBWHEEL_CID = 0x0000
+
+
+def looks_like_thumbwheel_slot(slot_id, slot_name):
+    return (
+        slot_name == "SLOT_NAME_THUMBWHEEL"
+        or 'thumb_wheel' in (slot_id or '').lower()
+    )
 
 
 def load_options_device_db(main_dir):
@@ -139,54 +161,76 @@ def dpi_from_capabilities(caps):
     return {"min": 200, "max": 4000, "step": 50}
 
 
-def parse_metadata_hotspots(metadata_path, image_key='device_buttons_image'):
-    """Parse button hotspot positions from Options+ metadata.json."""
+def _marker_to_pct(marker):
+    """Options+ markers encode position as percentages in [0, 100]."""
+    x_pct = round(marker.get('x', 0) / 100.0, 3)
+    y_pct = round(marker.get('y', 0) / 100.0, 3)
+    return max(0.0, min(1.0, x_pct)), max(0.0, min(1.0, y_pct))
+
+
+def parse_metadata_hotspots(metadata_path, image_key='device_buttons_image', start_idx=None):
+    """Parse button hotspot positions from Options+ core_metadata.json.
+
+    Markers are percentages in [0, 100] relative to the device image, not
+    pixel coordinates — the `origin` width/height only describe the source
+    image resolution. Returns parsed controls/hotspots plus a flag indicating
+    whether a synthetic thumbwheel entry was emitted.
+    """
     try:
         meta = json.load(open(metadata_path))
     except Exception:
-        return [], 0, 0
+        return [], False
 
     controls = []
-    img_w, img_h = 396, 396
+    thumbwheel_emitted = False
+    idx = len(DEFAULT_CONTROLS) if start_idx is None else start_idx
 
     for img in meta.get('images', []):
         if img.get('key') != image_key:
             continue
-        origin = img.get('origin', {})
-        img_w = origin.get('width', 396)
-        img_h = origin.get('height', 396)
 
-        idx = len(DEFAULT_CONTROLS)
         for assignment in img.get('assignments', []):
             slot_id = assignment.get('slotId', '')
             slot_name = assignment.get('slotName', '')
             marker = assignment.get('marker', {})
 
+            x_pct, y_pct = _marker_to_pct(marker)
+
             cid = parse_cid_from_slot_id(slot_id)
-            if cid is None:
+            is_thumb = looks_like_thumbwheel_slot(slot_id, slot_name)
+
+            if cid is None and not is_thumb:
+                # Slot has no HID++ CID and isn't a thumbwheel — nothing to
+                # emit. Scroll / pointer settings zones hit this branch.
                 continue
 
-            name_info = SLOT_NAME_MAP.get(slot_name, (slot_name, "default", True))
+            if cid is None and is_thumb:
+                cid = THUMBWHEEL_CID
+                thumbwheel_emitted = True
 
-            x_pct = round(marker.get('x', 0) / img_w, 3) if img_w else 0
-            y_pct = round(marker.get('y', 0) / img_h, 3) if img_h else 0
+            name_info = SLOT_NAME_MAP.get(
+                slot_name,
+                (slot_name, "default", True),
+            )
 
-            cid_hex = f"0x{cid:04x}"
+            cid_hex = f"0x{cid:04X}"
             controls.append({
                 'control': {
-                    "cid": cid_hex,
-                    "index": idx,
-                    "name": name_info[0],
-                    "defaultAction": name_info[1],
+                    # Field names match ControlDescriptor JSON keys parsed by
+                    # JsonDevice::parseControls() in src/core/devices/JsonDevice.cpp
+                    # (controlId / buttonIndex / defaultName / defaultActionType).
+                    "controlId": cid_hex,
+                    "buttonIndex": idx,
+                    "defaultName": name_info[0],
+                    "defaultActionType": name_info[1],
                     "configurable": name_info[2],
                 },
-                # Field names must match JsonDevice::parseHotspots() in
-                # src/core/devices/JsonDevice.cpp (buttonIndex / xPct / yPct
-                # / labelOffsetYPct). Mismatches are silently dropped as 0.
+                # Field names must match JsonDevice::parseHotspots()
+                # (buttonIndex / xPct / yPct / labelOffsetYPct).
                 'hotspot': {
                     "buttonIndex": idx,
-                    "xPct": max(0, min(1, x_pct)),
-                    "yPct": max(0, min(1, y_pct)),
+                    "xPct": x_pct,
+                    "yPct": y_pct,
                     "side": "right" if x_pct > 0.5 else "left",
                     "labelOffsetYPct": 0.0,
                 },
@@ -194,10 +238,46 @@ def parse_metadata_hotspots(metadata_path, image_key='device_buttons_image'):
             idx += 1
         break
 
-    return controls, img_w, img_h
+    return controls, thumbwheel_emitted
 
 
-def build_descriptor(mouse_info, controls_data, has_side_image, has_back_image):
+def parse_scroll_hotspots(metadata_path, after_button_idx):
+    """Parse scroll/pointer hotspots from `device_point_scroll_image`.
+
+    Scroll hotspots use negative buttonIndex values (-1, -2, -3…) by
+    convention, matching the hand-written descriptors. The image contains
+    entries for the scroll wheel, thumb wheel zone, and pointer-settings
+    handle; we emit them in metadata order.
+    """
+    try:
+        meta = json.load(open(metadata_path))
+    except Exception:
+        return []
+
+    hotspots = []
+    slot = -1
+
+    for img in meta.get('images', []):
+        if img.get('key') != 'device_point_scroll_image':
+            continue
+        for assignment in img.get('assignments', []):
+            marker = assignment.get('marker', {})
+            x_pct, y_pct = _marker_to_pct(marker)
+            hotspots.append({
+                "buttonIndex": slot,
+                "xPct": x_pct,
+                "yPct": y_pct,
+                "side": "right" if x_pct > 0.5 else "left",
+                "labelOffsetYPct": 0.0,
+            })
+            slot -= 1
+        break
+
+    return hotspots
+
+
+def build_descriptor(mouse_info, controls_data, scroll_hotspots,
+                     has_side_image, has_back_image):
     """Build a complete descriptor.json for a device."""
     all_controls = list(DEFAULT_CONTROLS)
     button_hotspots = []
@@ -229,7 +309,7 @@ def build_descriptor(mouse_info, controls_data, has_side_image, has_back_image):
         "controls": all_controls,
         "hotspots": {
             "buttons": button_hotspots,
-            "scroll": [],
+            "scroll": scroll_hotspots,
         },
         "images": images,
         "easySwitchSlots": [],
@@ -291,16 +371,20 @@ def main():
         metadata_path = os.path.join(depot_dir, 'metadata.json')
         if not os.path.exists(metadata_path):
             metadata_path = os.path.join(depot_dir, 'core_metadata.json')
-        controls_data, _, _ = parse_metadata_hotspots(metadata_path)
+        controls_data, _ = parse_metadata_hotspots(metadata_path)
+        scroll_hotspots = parse_scroll_hotspots(metadata_path, after_button_idx=len(controls_data))
 
-        descriptor = build_descriptor(mouse_info, controls_data, has_side, has_back)
+        descriptor = build_descriptor(mouse_info, controls_data, scroll_hotspots,
+                                      has_side, has_back)
 
         if args.dry_run:
             pids = ', '.join(mouse_info['pids'])
             imgs = "front"
             if has_side: imgs += "+side"
             if has_back: imgs += "+back"
-            print(f"  {mouse_info['name']:40s} -> {slug}/ ({len(descriptor['controls'])} controls, imgs={imgs})")
+            print(f"  {mouse_info['name']:40s} -> {slug}/ "
+                  f"({len(descriptor['controls'])} controls, "
+                  f"{len(descriptor['hotspots']['scroll'])} scroll, imgs={imgs})")
             generated += 1
             continue
 
@@ -314,7 +398,9 @@ def main():
         if has_back:
             shutil.copy2(back_img, os.path.join(out_dir, 'back.png'))
 
-        print(f"  {slug}: {len(descriptor['controls'])} controls, {len(descriptor['hotspots']['buttons'])} hotspots")
+        print(f"  {slug}: {len(descriptor['controls'])} controls, "
+              f"{len(descriptor['hotspots']['buttons'])} hotspots, "
+              f"{len(descriptor['hotspots']['scroll'])} scroll")
         generated += 1
 
     print(f"\nDone: {generated} generated, {skipped} skipped, {no_images} missing images")
