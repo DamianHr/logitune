@@ -31,7 +31,15 @@ public:
     AppController(IDesktopIntegration *desktop, IInputInjector *injector, QObject *parent = nullptr);
 
     void init();
-    void startMonitoring();
+
+    /// Start the device monitor.
+    ///
+    /// When @p simulateAll is true, the app skips udev + HID++ entirely
+    /// and instead seeds the carousel with one fake session per descriptor
+    /// currently loaded in DeviceRegistry. Used by the `--simulate-all`
+    /// CLI flag for visually inspecting every community descriptor
+    /// without needing physical hardware.
+    void startMonitoring(bool simulateAll = false);
 
     friend class test::AppControllerFixture;
 

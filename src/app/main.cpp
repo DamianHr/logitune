@@ -1,4 +1,6 @@
 #include <QApplication>
+#include <QCommandLineOption>
+#include <QCommandLineParser>
 #include <QDir>
 #include <QDirIterator>
 #include <QSettings>
@@ -52,6 +54,23 @@ int main(int argc, char *argv[])
     app.setApplicationVersion(QStringLiteral(PROJECT_VERSION));
     app.setQuitOnLastWindowClosed(false);  // tray icon keeps app alive
     app.setWindowIcon(QIcon(":/Logitune/qml/assets/logitune-icon.svg"));
+
+    // Command-line parsing
+    QCommandLineParser parser;
+    parser.setApplicationDescription(
+        QStringLiteral("Logitune — Logitech device configuration"));
+    parser.addHelpOption();
+    parser.addVersionOption();
+    QCommandLineOption simulateAllOption(
+        QStringLiteral("simulate-all"),
+        QStringLiteral(
+            "Debug: populate the carousel with one fake card per descriptor "
+            "in DeviceRegistry instead of scanning hardware. Used for "
+            "visually inspecting every community descriptor without needing "
+            "the physical mice."));
+    parser.addOption(simulateAllOption);
+    parser.process(app);
+    const bool simulateAll = parser.isSet(simulateAllOption);
 
     // Single-instance guard — prevent two instances fighting over the device
     QLockFile lockFile(QStandardPaths::writableLocation(QStandardPaths::TempLocation)
@@ -198,7 +217,7 @@ int main(int argc, char *argv[])
             qCInfo(lcApp) << "Theme.dark applied:" << isDark;
     }
 
-    controller.startMonitoring();
+    controller.startMonitoring(simulateAll);
 
     // System tray
     logitune::TrayManager tray(controller.deviceModel());

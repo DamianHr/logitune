@@ -67,8 +67,19 @@ void AppController::init()
     wireSignals();
 }
 
-void AppController::startMonitoring()
+void AppController::startMonitoring(bool simulateAll)
 {
+    if (simulateAll) {
+        // --simulate-all: populate the carousel with one fake session per
+        // descriptor currently loaded in DeviceRegistry instead of scanning
+        // udev for real hardware. Useful for visually walking through every
+        // community descriptor at once without owning the physical mice.
+        qCInfo(lcApp) << "--simulate-all: seeding carousel from registry";
+        m_deviceManager.simulateAllFromRegistry();
+        m_desktop->start();
+        return;
+    }
+
     m_deviceManager.start();
     m_desktop->start();
     m_deviceFetcher.fetchManifest();
