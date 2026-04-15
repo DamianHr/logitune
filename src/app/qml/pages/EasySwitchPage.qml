@@ -55,24 +55,51 @@ Item {
 
                 Repeater {
                     model: imageContainer.slotPositions.length
-                    Rectangle {
+                    Item {
+                        id: slotItem
                         required property int index
                         readonly property bool isActive: (index + 1) === DeviceModel.activeSlot
                         readonly property var pos: index < imageContainer.slotPositions.length
                             ? imageContainer.slotPositions[index] : { xPct: 0.5, yPct: 0.65 }
 
-                        x: imageContainer.imgX + imageContainer.imgW * pos.xPct - width / 2
-                        y: imageContainer.imgY + imageContainer.imgH * pos.yPct - height / 2
-                        width: 9; height: 9; radius: 4.5
-                        color: isActive ? Theme.accent : "transparent"
-                        border.color: Theme.accent
-                        border.width: isActive ? 0 : 1.5
+                        width: 24; height: 24
 
-                        SequentialAnimation on opacity {
-                            running: isActive
-                            loops: Animation.Infinite
-                            NumberAnimation { to: 0.3; duration: 800; easing.type: Easing.InOutSine }
-                            NumberAnimation { to: 1.0; duration: 800; easing.type: Easing.InOutSine }
+                        readonly property real targetX: imageContainer.imgX + imageContainer.imgW * pos.xPct
+                        readonly property real targetY: imageContainer.imgY + imageContainer.imgH * pos.yPct
+
+                        x: drag.active ? x : targetX - width / 2
+                        y: drag.active ? y : targetY - height / 2
+
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: 9; height: 9; radius: 4.5
+                            color: slotItem.isActive ? Theme.accent : "transparent"
+                            border.color: Theme.accent
+                            border.width: slotItem.isActive ? 0 : 1.5
+
+                            SequentialAnimation on opacity {
+                                running: slotItem.isActive
+                                loops: Animation.Infinite
+                                NumberAnimation { to: 0.3; duration: 800; easing.type: Easing.InOutSine }
+                                NumberAnimation { to: 1.0; duration: 800; easing.type: Easing.InOutSine }
+                            }
+                        }
+
+                        DragHandler {
+                            id: drag
+                            enabled: typeof EditorModel !== 'undefined' && EditorModel.editing
+                            target: parent
+                            onActiveChanged: {
+                                if (!active) {
+                                    var cx = slotItem.x + slotItem.width / 2
+                                    var cy = slotItem.y + slotItem.height / 2
+                                    var xPct = (cx - imageContainer.imgX) / imageContainer.imgW
+                                    var yPct = (cy - imageContainer.imgY) / imageContainer.imgH
+                                    xPct = Math.max(0, Math.min(1, xPct))
+                                    yPct = Math.max(0, Math.min(1, yPct))
+                                    EditorModel.updateSlotPosition(slotItem.index, xPct, yPct)
+                                }
+                            }
                         }
                     }
                 }
