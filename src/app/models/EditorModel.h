@@ -29,6 +29,7 @@ public:
 
 public slots:
     void setActiveDevicePath(const QString &path);
+    Q_INVOKABLE void updateSlotPosition(int idx, double xPct, double yPct);
 
 signals:
     void dirtyChanged();
@@ -36,6 +37,9 @@ signals:
     void activeDevicePathChanged();
 
 private:
+    void ensurePending(const QString &path);
+    void pushCommand(EditCommand cmd);
+
     DeviceRegistry *m_registry;
     bool m_editing;
     QString m_activeDevicePath;
