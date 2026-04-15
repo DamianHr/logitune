@@ -5,6 +5,8 @@
 #include <QFileInfo>
 #include <QDir>
 #include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 #include "EditorModel.h"
 #include "DeviceRegistry.h"
 
@@ -178,4 +180,27 @@ TEST(EditorModel, PerDeviceStacksAreIsolated) {
     m.setActiveDevicePath(pathA);
     EXPECT_TRUE(m.canUndo());
     EXPECT_TRUE(m.hasUnsavedChanges());
+}
+
+TEST(EditorModel, SaveWritesPendingAndClearsState) {
+    QTemporaryDir tmp; ASSERT_TRUE(tmp.isValid());
+    const QString path = writeMinimalDescriptor(tmp.path() + QStringLiteral("/dev"));
+
+    logitune::DeviceRegistry reg;
+    logitune::EditorModel m(&reg, true);
+    m.setActiveDevicePath(path);
+
+    QSignalSpy savedSpy(&m, &logitune::EditorModel::saved);
+    m.updateSlotPosition(0, 0.55, 0.66);
+    m.save();
+
+    EXPECT_FALSE(m.hasUnsavedChanges());
+    EXPECT_FALSE(m.canUndo());
+    EXPECT_FALSE(m.canRedo());
+    EXPECT_EQ(savedSpy.count(), 1);
+
+    QFile f(path + QStringLiteral("/descriptor.json"));
+    ASSERT_TRUE(f.open(QIODevice::ReadOnly));
+    auto obj = QJsonDocument::fromJson(f.readAll()).object();
+    EXPECT_DOUBLE_EQ(obj[QStringLiteral("easySwitchSlots")].toArray()[0].toObject()[QStringLiteral("xPct")].toDouble(), 0.55);
 }

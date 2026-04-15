@@ -6,6 +6,7 @@
 #include <QStack>
 #include <QJsonObject>
 #include "EditCommand.h"
+#include "devices/DescriptorWriter.h"
 
 namespace logitune {
 
@@ -35,11 +36,14 @@ public slots:
     Q_INVOKABLE void updateText(const QString &field, int index, const QString &value);
     Q_INVOKABLE void undo();
     Q_INVOKABLE void redo();
+    Q_INVOKABLE void save();
 
 signals:
     void dirtyChanged();
     void undoStateChanged();
     void activeDevicePathChanged();
+    void saved(const QString &path);
+    void saveFailed(const QString &path, const QString &error);
 
 private:
     void ensurePending(const QString &path);
@@ -53,6 +57,8 @@ private:
     QHash<QString, QStack<EditCommand>> m_undoStacks;
     QHash<QString, QStack<EditCommand>> m_redoStacks;
     QSet<QString> m_dirty;
+    DescriptorWriter m_writer;
+    QSet<QString> m_selfWrittenPaths;
 };
 
 } // namespace logitune

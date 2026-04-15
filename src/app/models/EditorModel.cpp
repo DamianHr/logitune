@@ -188,4 +188,32 @@ void EditorModel::redo() {
     emit undoStateChanged();
 }
 
+void EditorModel::save() {
+    if (m_activeDevicePath.isEmpty()) return;
+    if (!m_pendingEdits.contains(m_activeDevicePath)) return;
+
+    m_selfWrittenPaths.insert(m_activeDevicePath);
+
+    QString err;
+    auto result = m_writer.write(m_activeDevicePath,
+                                 m_pendingEdits.value(m_activeDevicePath), &err);
+    if (result != DescriptorWriter::Ok) {
+        m_selfWrittenPaths.remove(m_activeDevicePath);
+        emit saveFailed(m_activeDevicePath, err);
+        return;
+    }
+
+    if (m_registry)
+        m_registry->reload(m_activeDevicePath);
+
+    m_pendingEdits.remove(m_activeDevicePath);
+    m_undoStacks.remove(m_activeDevicePath);
+    m_redoStacks.remove(m_activeDevicePath);
+    m_dirty.remove(m_activeDevicePath);
+
+    emit dirtyChanged();
+    emit undoStateChanged();
+    emit saved(m_activeDevicePath);
+}
+
 } // namespace logitune
