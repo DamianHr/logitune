@@ -227,3 +227,26 @@ TEST(EditorModel, SaveFailurePreservesState) {
     QFile::setPermissions(path,
         QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
 }
+
+TEST(EditorModel, ResetDiscardsPendingAndClearsStacks) {
+    QTemporaryDir tmp; ASSERT_TRUE(tmp.isValid());
+    const QString path = writeMinimalDescriptor(tmp.path() + QStringLiteral("/dev"));
+
+    logitune::DeviceRegistry reg;
+    logitune::EditorModel m(&reg, true);
+    m.setActiveDevicePath(path);
+
+    m.updateSlotPosition(0, 0.99, 0.99);
+    EXPECT_TRUE(m.hasUnsavedChanges());
+
+    m.reset();
+
+    EXPECT_FALSE(m.hasUnsavedChanges());
+    EXPECT_FALSE(m.canUndo());
+    EXPECT_FALSE(m.canRedo());
+
+    QFile f(path + QStringLiteral("/descriptor.json"));
+    ASSERT_TRUE(f.open(QIODevice::ReadOnly));
+    auto obj = QJsonDocument::fromJson(f.readAll()).object();
+    EXPECT_DOUBLE_EQ(obj[QStringLiteral("easySwitchSlots")].toArray()[0].toObject()[QStringLiteral("xPct")].toDouble(), 0.10);
+}

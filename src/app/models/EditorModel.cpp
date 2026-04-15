@@ -216,4 +216,14 @@ void EditorModel::save() {
     emit saved(m_activeDevicePath);
 }
 
+void EditorModel::reset() {
+    if (m_activeDevicePath.isEmpty()) return;
+    m_pendingEdits.remove(m_activeDevicePath);
+    m_undoStacks.remove(m_activeDevicePath);
+    m_redoStacks.remove(m_activeDevicePath);
+    m_dirty.remove(m_activeDevicePath);
+    emit dirtyChanged();
+    emit undoStateChanged();
+}
+
 } // namespace logitune

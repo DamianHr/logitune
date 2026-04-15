@@ -37,6 +37,7 @@ public slots:
     Q_INVOKABLE void undo();
     Q_INVOKABLE void redo();
     Q_INVOKABLE void save();
+    Q_INVOKABLE void reset();
 
 signals:
     void dirtyChanged();
