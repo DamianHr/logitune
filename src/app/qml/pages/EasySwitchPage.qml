@@ -63,9 +63,10 @@ Item {
 
                         x: imageContainer.imgX + imageContainer.imgW * pos.xPct - width / 2
                         y: imageContainer.imgY + imageContainer.imgH * pos.yPct - height / 2
-                        width: 7; height: 7; radius: 3.5
+                        width: 9; height: 9; radius: 4.5
                         color: isActive ? Theme.accent : "transparent"
-                        visible: isActive
+                        border.color: Theme.accent
+                        border.width: isActive ? 0 : 1.5
 
                         SequentialAnimation on opacity {
                             running: isActive
