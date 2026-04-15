@@ -216,6 +216,38 @@ void EditorModel::save() {
     emit saved(m_activeDevicePath);
 }
 
+void EditorModel::replaceImage(const QString &role, const QString &sourcePath) {
+    if (m_activeDevicePath.isEmpty()) return;
+    if (role != QStringLiteral("front") && role != QStringLiteral("side") && role != QStringLiteral("back")) return;
+    if (!QFile::exists(sourcePath)) return;
+
+    ensurePending(m_activeDevicePath);
+    QJsonObject &obj = m_pendingEdits[m_activeDevicePath];
+    QJsonObject images = obj.value(QStringLiteral("images")).toObject();
+    const QString prevName = images.value(role).toString();
+    const QString newName = role + QStringLiteral(".png");
+    const QString destPath = m_activeDevicePath + QStringLiteral("/") + newName;
+
+    const QString tmpPath = destPath + QStringLiteral(".tmp");
+    QFile::remove(tmpPath);
+    if (!QFile::copy(sourcePath, tmpPath)) return;
+    QFile::remove(destPath);
+    if (!QFile::rename(tmpPath, destPath)) {
+        QFile::remove(tmpPath);
+        return;
+    }
+
+    EditCommand cmd;
+    cmd.kind = EditCommand::ImageReplace;
+    cmd.role = role;
+    cmd.before = prevName;
+    cmd.after = newName;
+
+    images[role] = newName;
+    obj[QStringLiteral("images")] = images;
+    pushCommand(std::move(cmd));
+}
+
 void EditorModel::reset() {
     if (m_activeDevicePath.isEmpty()) return;
     m_pendingEdits.remove(m_activeDevicePath);

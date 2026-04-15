@@ -250,3 +250,24 @@ TEST(EditorModel, ResetDiscardsPendingAndClearsStacks) {
     auto obj = QJsonDocument::fromJson(f.readAll()).object();
     EXPECT_DOUBLE_EQ(obj[QStringLiteral("easySwitchSlots")].toArray()[0].toObject()[QStringLiteral("xPct")].toDouble(), 0.10);
 }
+
+TEST(EditorModel, ReplaceImageCopiesFileAndUpdatesPending) {
+    QTemporaryDir tmp; ASSERT_TRUE(tmp.isValid());
+    const QString path = writeMinimalDescriptor(tmp.path() + QStringLiteral("/dev"));
+
+    const QString src = tmp.path() + QStringLiteral("/source-image.png");
+    QFile sf(src);
+    ASSERT_TRUE(sf.open(QIODevice::WriteOnly));
+    sf.write("\x89PNG\r\n");
+    sf.close();
+
+    logitune::DeviceRegistry reg;
+    logitune::EditorModel m(&reg, true);
+    m.setActiveDevicePath(path);
+
+    m.replaceImage(QStringLiteral("back"), src);
+
+    EXPECT_TRUE(m.hasUnsavedChanges());
+    EXPECT_TRUE(m.canUndo());
+    EXPECT_TRUE(QFile::exists(path + QStringLiteral("/back.png")));
+}

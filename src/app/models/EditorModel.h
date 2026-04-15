@@ -38,6 +38,7 @@ public slots:
     Q_INVOKABLE void redo();
     Q_INVOKABLE void save();
     Q_INVOKABLE void reset();
+    Q_INVOKABLE void replaceImage(const QString &role, const QString &sourcePath);
 
 signals:
     void dirtyChanged();
