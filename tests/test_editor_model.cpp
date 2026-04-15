@@ -154,3 +154,28 @@ TEST(EditorModel, UpdateTextEditsAllThreeKindsAndUndoes) {
     EXPECT_FALSE(m.hasUnsavedChanges());
     EXPECT_FALSE(m.canUndo());
 }
+
+TEST(EditorModel, PerDeviceStacksAreIsolated) {
+    QTemporaryDir tmp; ASSERT_TRUE(tmp.isValid());
+    const QString pathA = writeMinimalDescriptor(tmp.path() + QStringLiteral("/devA"));
+    const QString pathB = writeMinimalDescriptor(tmp.path() + QStringLiteral("/devB"));
+
+    logitune::DeviceRegistry reg;
+    logitune::EditorModel m(&reg, true);
+
+    m.setActiveDevicePath(pathA);
+    m.updateSlotPosition(0, 0.5, 0.5);
+    EXPECT_TRUE(m.canUndo());
+    EXPECT_TRUE(m.hasUnsavedChanges());
+
+    m.setActiveDevicePath(pathB);
+    EXPECT_FALSE(m.canUndo());
+    EXPECT_FALSE(m.hasUnsavedChanges());
+
+    m.updateSlotPosition(0, 0.7, 0.7);
+    EXPECT_TRUE(m.canUndo());
+
+    m.setActiveDevicePath(pathA);
+    EXPECT_TRUE(m.canUndo());
+    EXPECT_TRUE(m.hasUnsavedChanges());
+}
