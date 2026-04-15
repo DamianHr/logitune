@@ -30,6 +30,8 @@ public:
 public slots:
     void setActiveDevicePath(const QString &path);
     Q_INVOKABLE void updateSlotPosition(int idx, double xPct, double yPct);
+    Q_INVOKABLE void updateHotspot(int hotspotIndex, double xPct, double yPct,
+                                   const QString &side, double labelOffsetYPct);
 
 signals:
     void dirtyChanged();

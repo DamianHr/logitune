@@ -72,3 +72,33 @@ TEST(EditorModel, UpdateSlotPositionMutatesPendingAndPushesUndo) {
     EXPECT_GE(dirtySpy.count(), 1);
     EXPECT_GE(undoSpy.count(), 1);
 }
+
+TEST(EditorModel, UpdateHotspotMutatesPendingAndPushesUndo) {
+    QTemporaryDir tmp;
+    ASSERT_TRUE(tmp.isValid());
+    QDir().mkpath(tmp.path() + QStringLiteral("/dev"));
+    QFile f(tmp.path() + QStringLiteral("/dev/descriptor.json"));
+    ASSERT_TRUE(f.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    f.write(R"({
+  "name": "Tester", "status": "community-local", "productIds": ["0xffff"],
+  "features": {}, "controls": [],
+  "hotspots": {
+    "buttons": [
+      {"buttonIndex": 0, "xPct": 0.10, "yPct": 0.20, "side": "left", "labelOffsetYPct": 0.0}
+    ],
+    "scroll": []
+  },
+  "images": {}, "easySwitchSlots": []
+})");
+    f.close();
+    const QString path = QFileInfo(tmp.path() + QStringLiteral("/dev")).canonicalFilePath();
+
+    logitune::DeviceRegistry reg;
+    logitune::EditorModel m(&reg, true);
+    m.setActiveDevicePath(path);
+
+    m.updateHotspot(0, 0.55, 0.66, QStringLiteral("right"), 0.10);
+
+    EXPECT_TRUE(m.hasUnsavedChanges());
+    EXPECT_TRUE(m.canUndo());
+}

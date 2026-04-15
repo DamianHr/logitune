@@ -64,4 +64,31 @@ void EditorModel::updateSlotPosition(int idx, double xPct, double yPct) {
     pushCommand(std::move(cmd));
 }
 
+void EditorModel::updateHotspot(int idx, double xPct, double yPct,
+                                 const QString &side, double labelOffsetYPct) {
+    if (m_activeDevicePath.isEmpty()) return;
+    ensurePending(m_activeDevicePath);
+    QJsonObject &obj = m_pendingEdits[m_activeDevicePath];
+    QJsonObject hotspots = obj.value(QStringLiteral("hotspots")).toObject();
+    QJsonArray buttons = hotspots.value(QStringLiteral("buttons")).toArray();
+    if (idx < 0 || idx >= buttons.size()) return;
+
+    EditCommand cmd;
+    cmd.kind = EditCommand::HotspotMove;
+    cmd.index = idx;
+    cmd.before = buttons[idx];
+
+    QJsonObject hs = buttons[idx].toObject();
+    hs[QStringLiteral("xPct")] = xPct;
+    hs[QStringLiteral("yPct")] = yPct;
+    hs[QStringLiteral("side")] = side;
+    hs[QStringLiteral("labelOffsetYPct")] = labelOffsetYPct;
+    buttons[idx] = hs;
+    hotspots[QStringLiteral("buttons")] = buttons;
+    obj[QStringLiteral("hotspots")] = hotspots;
+    cmd.after = buttons[idx];
+
+    pushCommand(std::move(cmd));
+}
+
 } // namespace logitune
