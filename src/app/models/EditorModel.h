@@ -34,6 +34,8 @@ public slots:
     Q_INVOKABLE void updateSlotPosition(int idx, double xPct, double yPct);
     Q_INVOKABLE void updateHotspot(int hotspotIndex, double xPct, double yPct,
                                    const QString &side, double labelOffsetYPct);
+    Q_INVOKABLE void updateScrollHotspot(int hotspotIndex, double xPct, double yPct,
+                                         const QString &side, double labelOffsetYPct);
     Q_INVOKABLE void updateText(const QString &field, int index, const QString &value);
     Q_INVOKABLE void undo();
     Q_INVOKABLE void redo();

@@ -12,6 +12,15 @@ Item {
     property var    settings: []     // list of strings shown as lines
     property string calloutType: ""  // "scrollwheel" | "thumbwheel" | "pointerspeed"
 
+    // Editor-mode drag support (see PointScrollPage wiring)
+    property int  hotspotIndex: -1
+    property real hsXPct: 0
+    property real hsYPct: 0
+    property real hsLabelOffsetYPct: 0
+    property real pageWidth: 0
+    property real pageHeight: 0
+    readonly property bool dragging: cardDrag.active
+
     signal calloutClicked(string type)
 
     implicitWidth:  card.implicitWidth
@@ -81,6 +90,32 @@ Item {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
             onClicked: root.calloutClicked(root.calloutType)
+        }
+    }
+
+    // Editor-mode drag: translate root Item freely, on release snap side to the
+    // nearest half-page column and persist labelOffsetYPct as a delta from grab.
+    DragHandler {
+        id: cardDrag
+        enabled: typeof EditorModel !== 'undefined' && EditorModel.editing
+        target: root
+
+        property real grabOffsetYPct: 0
+        property real grabY: 0
+
+        onActiveChanged: {
+            if (active) {
+                cardDrag.grabOffsetYPct = root.hsLabelOffsetYPct
+                cardDrag.grabY = root.y
+            } else if (root.pageWidth > 0 && root.pageHeight > 0) {
+                var centroidX = root.x + root.width / 2
+                var newSide = centroidX < root.pageWidth / 2 ? "left" : "right"
+                var dy = root.y - cardDrag.grabY
+                var newOffsetY = cardDrag.grabOffsetYPct + (dy / root.pageHeight)
+                EditorModel.updateScrollHotspot(root.hotspotIndex,
+                                                 root.hsXPct, root.hsYPct,
+                                                 newSide, newOffsetY)
+            }
         }
     }
 }

@@ -107,6 +107,7 @@ void EditorModel::updateHotspot(int idx, double xPct, double yPct,
 
     EditCommand cmd;
     cmd.kind = EditCommand::HotspotMove;
+    cmd.role = QStringLiteral("buttons");
     cmd.index = idx;
     cmd.before = buttons[idx];
 
@@ -119,6 +120,34 @@ void EditorModel::updateHotspot(int idx, double xPct, double yPct,
     hotspots[QStringLiteral("buttons")] = buttons;
     obj[QStringLiteral("hotspots")] = hotspots;
     cmd.after = buttons[idx];
+
+    pushCommand(std::move(cmd));
+}
+
+void EditorModel::updateScrollHotspot(int idx, double xPct, double yPct,
+                                       const QString &side, double labelOffsetYPct) {
+    if (m_activeDevicePath.isEmpty()) return;
+    ensurePending(m_activeDevicePath);
+    QJsonObject &obj = m_pendingEdits[m_activeDevicePath];
+    QJsonObject hotspots = obj.value(QStringLiteral("hotspots")).toObject();
+    QJsonArray scroll = hotspots.value(QStringLiteral("scroll")).toArray();
+    if (idx < 0 || idx >= scroll.size()) return;
+
+    EditCommand cmd;
+    cmd.kind = EditCommand::HotspotMove;
+    cmd.role = QStringLiteral("scroll");
+    cmd.index = idx;
+    cmd.before = scroll[idx];
+
+    QJsonObject hs = scroll[idx].toObject();
+    hs[QStringLiteral("xPct")] = xPct;
+    hs[QStringLiteral("yPct")] = yPct;
+    hs[QStringLiteral("side")] = side;
+    hs[QStringLiteral("labelOffsetYPct")] = labelOffsetYPct;
+    scroll[idx] = hs;
+    hotspots[QStringLiteral("scroll")] = scroll;
+    obj[QStringLiteral("hotspots")] = hotspots;
+    cmd.after = scroll[idx];
 
     pushCommand(std::move(cmd));
 }
@@ -170,9 +199,12 @@ void EditorModel::applyCommand(const EditCommand &cmd, bool reverse) {
         obj[QStringLiteral("easySwitchSlots")] = slotsArr;
     } else if (cmd.kind == EditCommand::HotspotMove) {
         QJsonObject hotspots = obj.value(QStringLiteral("hotspots")).toObject();
-        QJsonArray buttons = hotspots.value(QStringLiteral("buttons")).toArray();
-        buttons[cmd.index] = target;
-        hotspots[QStringLiteral("buttons")] = buttons;
+        const QString arrayKey = cmd.role.isEmpty()
+            ? QStringLiteral("buttons")
+            : cmd.role;
+        QJsonArray arr = hotspots.value(arrayKey).toArray();
+        arr[cmd.index] = target;
+        hotspots[arrayKey] = arr;
         obj[QStringLiteral("hotspots")] = hotspots;
     } else if (cmd.kind == EditCommand::ImageReplace) {
         QJsonObject images = obj.value(QStringLiteral("images")).toObject();
