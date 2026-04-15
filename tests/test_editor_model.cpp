@@ -102,3 +102,24 @@ TEST(EditorModel, UpdateHotspotMutatesPendingAndPushesUndo) {
     EXPECT_TRUE(m.hasUnsavedChanges());
     EXPECT_TRUE(m.canUndo());
 }
+
+TEST(EditorModel, UndoRestoresSlotPosition) {
+    QTemporaryDir tmp; ASSERT_TRUE(tmp.isValid());
+    const QString path = writeMinimalDescriptor(tmp.path() + QStringLiteral("/dev"));
+    logitune::DeviceRegistry reg;
+    logitune::EditorModel m(&reg, true);
+    m.setActiveDevicePath(path);
+
+    m.updateSlotPosition(0, 0.99, 0.99);
+    EXPECT_TRUE(m.canUndo());
+    m.undo();
+
+    EXPECT_FALSE(m.canUndo());
+    EXPECT_TRUE(m.canRedo());
+    EXPECT_FALSE(m.hasUnsavedChanges());
+
+    m.redo();
+    EXPECT_TRUE(m.canUndo());
+    EXPECT_FALSE(m.canRedo());
+    EXPECT_TRUE(m.hasUnsavedChanges());
+}

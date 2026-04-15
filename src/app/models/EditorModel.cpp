@@ -91,4 +91,47 @@ void EditorModel::updateHotspot(int idx, double xPct, double yPct,
     pushCommand(std::move(cmd));
 }
 
+void EditorModel::applyCommand(const EditCommand &cmd, bool reverse) {
+    QJsonObject &obj = m_pendingEdits[m_activeDevicePath];
+    const QJsonValue &target = reverse ? cmd.before : cmd.after;
+    if (cmd.kind == EditCommand::SlotMove) {
+        QJsonArray slotsArr = obj.value(QStringLiteral("easySwitchSlots")).toArray();
+        slotsArr[cmd.index] = target;
+        obj[QStringLiteral("easySwitchSlots")] = slotsArr;
+    } else if (cmd.kind == EditCommand::HotspotMove) {
+        QJsonObject hotspots = obj.value(QStringLiteral("hotspots")).toObject();
+        QJsonArray buttons = hotspots.value(QStringLiteral("buttons")).toArray();
+        buttons[cmd.index] = target;
+        hotspots[QStringLiteral("buttons")] = buttons;
+        obj[QStringLiteral("hotspots")] = hotspots;
+    } else if (cmd.kind == EditCommand::ImageReplace) {
+        QJsonObject images = obj.value(QStringLiteral("images")).toObject();
+        images[cmd.role] = target.toString();
+        obj[QStringLiteral("images")] = images;
+    }
+}
+
+void EditorModel::undo() {
+    auto &stack = m_undoStacks[m_activeDevicePath];
+    if (stack.isEmpty()) return;
+    EditCommand cmd = stack.pop();
+    applyCommand(cmd, true);
+    m_redoStacks[m_activeDevicePath].push(cmd);
+
+    if (stack.isEmpty()) m_dirty.remove(m_activeDevicePath);
+    emit dirtyChanged();
+    emit undoStateChanged();
+}
+
+void EditorModel::redo() {
+    auto &stack = m_redoStacks[m_activeDevicePath];
+    if (stack.isEmpty()) return;
+    EditCommand cmd = stack.pop();
+    applyCommand(cmd, false);
+    m_undoStacks[m_activeDevicePath].push(cmd);
+    m_dirty.insert(m_activeDevicePath);
+    emit dirtyChanged();
+    emit undoStateChanged();
+}
+
 } // namespace logitune

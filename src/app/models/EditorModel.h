@@ -32,6 +32,8 @@ public slots:
     Q_INVOKABLE void updateSlotPosition(int idx, double xPct, double yPct);
     Q_INVOKABLE void updateHotspot(int hotspotIndex, double xPct, double yPct,
                                    const QString &side, double labelOffsetYPct);
+    Q_INVOKABLE void undo();
+    Q_INVOKABLE void redo();
 
 signals:
     void dirtyChanged();
@@ -41,6 +43,7 @@ signals:
 private:
     void ensurePending(const QString &path);
     void pushCommand(EditCommand cmd);
+    void applyCommand(const EditCommand &cmd, bool reverse);
 
     DeviceRegistry *m_registry;
     bool m_editing;
