@@ -100,20 +100,24 @@ Item {
                         readonly property var pos: index < imageContainer.slotPositions.length
                             ? imageContainer.slotPositions[index] : { xPct: 0.5, yPct: 0.65 }
 
+                        // Manual drag flag — cleared AFTER EditorModel update so the
+                        // Binding below sees the refreshed targetX/targetY on reactivation.
+                        // A plain `when: !drag.active` races DragHandler.onActiveChanged
+                        // and snaps the item back to the pre-drag position.
+                        property bool dragging: false
+
                         width: 24; height: 24
 
                         readonly property real targetX: imageContainer.imgX + imageContainer.imgW * pos.xPct
                         readonly property real targetY: imageContainer.imgY + imageContainer.imgH * pos.yPct
 
-                        // Conditional binding: active except while DragHandler is mutating x/y.
-                        // A self-referencing ternary here would sever the binding after first drag.
                         Binding on x {
                             value: slotItem.targetX - slotItem.width / 2
-                            when: !drag.active
+                            when: !slotItem.dragging
                         }
                         Binding on y {
                             value: slotItem.targetY - slotItem.height / 2
-                            when: !drag.active
+                            when: !slotItem.dragging
                         }
 
                         Rectangle {
@@ -136,7 +140,9 @@ Item {
                             enabled: typeof EditorModel !== 'undefined' && EditorModel.editing
                             target: parent
                             onActiveChanged: {
-                                if (!active) {
+                                if (active) {
+                                    slotItem.dragging = true
+                                } else {
                                     var cx = slotItem.x + slotItem.width / 2
                                     var cy = slotItem.y + slotItem.height / 2
                                     var xPct = (cx - imageContainer.imgX) / imageContainer.imgW
@@ -144,6 +150,7 @@ Item {
                                     xPct = Math.max(0, Math.min(1, xPct))
                                     yPct = Math.max(0, Math.min(1, yPct))
                                     EditorModel.updateSlotPosition(slotItem.index, xPct, yPct)
+                                    slotItem.dragging = false
                                 }
                             }
                         }

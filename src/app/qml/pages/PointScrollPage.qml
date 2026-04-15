@@ -100,19 +100,21 @@ Item {
                     required property int index
                     required property var modelData
 
+                    // Manual drag flag — cleared AFTER EditorModel update so the
+                    // Binding reactivates with the refreshed targetX/targetY.
+                    property bool dragging: false
+
                     readonly property real targetX: mouseRender.x + mouseRender.paintedX + modelData.xPct * mouseRender.paintedW
                     readonly property real targetY: mouseRender.y + mouseRender.paintedY + modelData.yPct * mouseRender.paintedH
 
                     width: 24; height: 24
-                    // Conditional binding: active except while DragHandler is mutating x/y.
-                    // A self-referencing ternary here would sever the binding after first drag.
                     Binding on x {
                         value: scrollMarker.targetX - scrollMarker.width / 2
-                        when: !scrollMarkerDrag.active
+                        when: !scrollMarker.dragging
                     }
                     Binding on y {
                         value: scrollMarker.targetY - scrollMarker.height / 2
-                        when: !scrollMarkerDrag.active
+                        when: !scrollMarker.dragging
                     }
 
                     Rectangle {
@@ -129,7 +131,9 @@ Item {
                         enabled: typeof EditorModel !== 'undefined' && EditorModel.editing
                         target: parent
                         onActiveChanged: {
-                            if (!active) {
+                            if (active) {
+                                scrollMarker.dragging = true
+                            } else {
                                 var cx = scrollMarker.x + scrollMarker.width / 2
                                 var cy = scrollMarker.y + scrollMarker.height / 2
                                 var xPct = (cx - mouseRender.x - mouseRender.paintedX) / mouseRender.paintedW
@@ -140,6 +144,7 @@ Item {
                                                                  xPct, yPct,
                                                                  scrollMarker.modelData.side,
                                                                  scrollMarker.modelData.labelOffsetYPct)
+                                scrollMarker.dragging = false
                             }
                         }
                     }

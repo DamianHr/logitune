@@ -19,7 +19,10 @@ Item {
     property real hsLabelOffsetYPct: 0
     property real pageWidth: 0
     property real pageHeight: 0
-    readonly property bool dragging: cardDrag.active
+    // Manual drag flag — cleared AFTER EditorModel update. Gating a Binding
+    // directly on cardDrag.active races DragHandler.onActiveChanged and snaps
+    // the card back to its pre-drag position.
+    property bool dragging: false
 
     signal calloutClicked(string type)
 
@@ -107,14 +110,18 @@ Item {
             if (active) {
                 cardDrag.grabOffsetYPct = root.hsLabelOffsetYPct
                 cardDrag.grabY = root.y
-            } else if (root.pageWidth > 0 && root.pageHeight > 0) {
-                var centroidX = root.x + root.width / 2
-                var newSide = centroidX < root.pageWidth / 2 ? "left" : "right"
-                var dy = root.y - cardDrag.grabY
-                var newOffsetY = cardDrag.grabOffsetYPct + (dy / root.pageHeight)
-                EditorModel.updateScrollHotspot(root.hotspotIndex,
-                                                 root.hsXPct, root.hsYPct,
-                                                 newSide, newOffsetY)
+                root.dragging = true
+            } else {
+                if (root.pageWidth > 0 && root.pageHeight > 0) {
+                    var centroidX = root.x + root.width / 2
+                    var newSide = centroidX < root.pageWidth / 2 ? "left" : "right"
+                    var dy = root.y - cardDrag.grabY
+                    var newOffsetY = cardDrag.grabOffsetYPct + (dy / root.pageHeight)
+                    EditorModel.updateScrollHotspot(root.hotspotIndex,
+                                                     root.hsXPct, root.hsYPct,
+                                                     newSide, newOffsetY)
+                }
+                root.dragging = false
             }
         }
     }
