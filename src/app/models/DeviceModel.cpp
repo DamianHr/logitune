@@ -565,6 +565,7 @@ QVariantList DeviceModel::controlDescriptors() const
         QVariantMap entry;
         entry[QStringLiteral("buttonId")]      = ctrl.buttonIndex;
         entry[QStringLiteral("buttonName")]    = ctrl.defaultName;
+        entry[QStringLiteral("displayName")]   = ctrl.displayName;
         entry[QStringLiteral("actionDefault")] = ctrl.defaultActionType;
         entry[QStringLiteral("configurable")]  = ctrl.configurable;
         result.append(entry);
@@ -584,6 +585,7 @@ QVariantList DeviceModel::easySwitchSlotPositions() const
         QVariantMap entry;
         entry[QStringLiteral("xPct")] = pos.xPct;
         entry[QStringLiteral("yPct")] = pos.yPct;
+        entry[QStringLiteral("label")] = pos.label;
         result.append(entry);
     }
     return result;

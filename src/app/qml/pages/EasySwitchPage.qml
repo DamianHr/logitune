@@ -136,6 +136,10 @@ Item {
                     delegate: Rectangle {
                         required property int index
                         readonly property bool isActive: (index + 1) === DeviceModel.activeSlot
+                        readonly property var slotData: DeviceModel.easySwitchSlotPositions[index] || ({})
+                        readonly property string slotLabel: (slotData.label && slotData.label.length > 0)
+                            ? slotData.label
+                            : (isActive ? DeviceModel.connectionType : "Available")
 
                         width: parent.width
                         height: 56
@@ -168,10 +172,14 @@ Item {
                                 anchors.verticalCenter: parent.verticalCenter
                                 spacing: 2
 
-                                Text {
-                                    text: isActive ? DeviceModel.connectionType : "Available"
-                                    font { pixelSize: 14; bold: isActive }
-                                    color: isActive ? Theme.text : Theme.textSecondary
+                                EditableText {
+                                    width: 260
+                                    height: 20
+                                    text: slotLabel
+                                    pixelSize: 14
+                                    textBold: isActive
+                                    textColor: isActive ? Theme.text : Theme.textSecondary
+                                    onCommit: function(v) { EditorModel.updateText("slotLabel", index, v) }
                                 }
                                 Text {
                                     text: isActive ? "Connected" : ""

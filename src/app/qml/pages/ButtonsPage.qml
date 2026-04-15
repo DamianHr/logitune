@@ -130,6 +130,7 @@ Item {
 
                     // Editor drag wiring
                     hotspotIndex: modelData
+                    buttonId: btnId
                     hsXPct: cdata.hotspotXPct
                     hsYPct: cdata.hotspotYPct
                     hsLabelOffsetYPct: cdata.labelOffsetYPct || 0

@@ -23,12 +23,23 @@ Item {
 
     // Editor-mode drag support (see ButtonsPage wiring)
     property int  hotspotIndex: -1
+    property int  buttonId: -1
     property real hsXPct: 0
     property real hsYPct: 0
     property real hsLabelOffsetYPct: 0
     property real pageWidth: 0
     property real pageHeight: 0
     readonly property bool dragging: cardDrag.active
+
+    readonly property int controlIndex: {
+        var ctrls = DeviceModel.controlDescriptors
+        if (!ctrls) return -1
+        for (var i = 0; i < ctrls.length; ++i) {
+            if (ctrls[i].buttonId === root.buttonId)
+                return i
+        }
+        return -1
+    }
 
     signal clicked()
 
@@ -115,15 +126,18 @@ Item {
             spacing: 2
 
             // Physical button name (primary, bold)
-            Text {
+            EditableText {
+                id: nameLabel
+                width: 156
+                height: 16
                 text: root.buttonName
-                font.pixelSize: 12
-                font.weight: Font.DemiBold
-                color: root.selected ? Theme.activeTabText : (hoverHandler.hovered ? Theme.accent : Theme.text)
-                width: Math.min(implicitWidth, 156)
-                elide: Text.ElideRight
-
-                Behavior on color { ColorAnimation { duration: 150 } }
+                pixelSize: 12
+                fontWeight: Font.DemiBold
+                textColor: root.selected ? Theme.activeTabText : (hoverHandler.hovered ? Theme.accent : Theme.text)
+                onCommit: function(v) {
+                    if (root.controlIndex >= 0)
+                        EditorModel.updateText("controlDisplayName", root.controlIndex, v)
+                }
             }
 
             // Action name (secondary)

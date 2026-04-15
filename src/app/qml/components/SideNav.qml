@@ -43,13 +43,14 @@ Rectangle {
             Layout.rightMargin: 16
             spacing: 8
 
-            Text {
+            EditableText {
                 text: DeviceModel.deviceName || "MX Master 3S"
-                font.pixelSize: 13
-                font.bold: true
-                color: Theme.text
-                elide: Text.ElideRight
+                pixelSize: 13
+                textBold: true
+                textColor: Theme.text
                 Layout.fillWidth: true
+                Layout.preferredHeight: 18
+                onCommit: function(v) { EditorModel.updateText("deviceName", -1, v) }
             }
         }
 
