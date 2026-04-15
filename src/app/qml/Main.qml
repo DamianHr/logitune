@@ -173,9 +173,14 @@ ApplicationWindow {
     }
 
     // ── Content below title bar ─────────────────────────────────────────
+    EditorToolbar {
+        id: editorToolbar
+        anchors { top: titleBar.bottom; left: parent.left; right: parent.right }
+    }
+
     StackView {
         id: mainStack
-        anchors { top: titleBar.bottom; left: parent.left; right: parent.right; bottom: parent.bottom }
+        anchors { top: editorToolbar.bottom; left: parent.left; right: parent.right; bottom: parent.bottom }
         initialItem: homeViewComponent
     }
 

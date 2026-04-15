@@ -156,4 +156,18 @@ Rectangle {
             visible: DeviceModel.deviceConnected && DeviceModel.batteryLevel > 0
         }
     }
+
+    // Edit-mode indicator stripe along the left edge, gated on EditorModel.editing
+    Rectangle {
+        id: editStripe
+        objectName: "editStripe"
+        anchors {
+            left: parent.left
+            top: parent.top
+            bottom: parent.bottom
+        }
+        width: 4
+        color: "#F5A623"
+        visible: typeof EditorModel !== 'undefined' && EditorModel.editing
+    }
 }
