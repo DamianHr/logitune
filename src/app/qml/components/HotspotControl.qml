@@ -171,9 +171,17 @@ Item {
         width: cardRect.implicitWidth
         height: cardRect.implicitHeight
 
-        x: root.cardTargetX
-        y: root.cardTargetY
-
+        Connections {
+            target: root
+            function onCardTargetXChanged() {
+                if (!cardDrag.active && !markerDrag.active)
+                    cardItem.x = root.cardTargetX
+            }
+            function onCardTargetYChanged() {
+                if (!cardDrag.active && !markerDrag.active)
+                    cardItem.y = root.cardTargetY
+            }
+        }
 
         Rectangle {
             id: cardRect
@@ -265,6 +273,10 @@ Item {
                     EditorModel.updateHotspot(root.hotspotIndex,
                         root.hotspotXPct, root.hotspotYPct,
                         newSide, newOffsetY)
+                    Qt.callLater(function() {
+                        cardItem.x = root.cardTargetX
+                        cardItem.y = root.cardTargetY
+                    })
                 }
             }
         }
