@@ -100,22 +100,12 @@ Item {
                     required property int index
                     required property var modelData
 
-                    // Manual drag flag — cleared AFTER EditorModel update so the
-                    // Binding reactivates with the refreshed targetX/targetY.
-                    property bool dragging: false
-
                     readonly property real targetX: mouseRender.x + mouseRender.paintedX + modelData.xPct * mouseRender.paintedW
                     readonly property real targetY: mouseRender.y + mouseRender.paintedY + modelData.yPct * mouseRender.paintedH
 
                     width: 24; height: 24
-                    Binding on x {
-                        value: scrollMarker.targetX - scrollMarker.width / 2
-                        when: !scrollMarker.dragging
-                    }
-                    Binding on y {
-                        value: scrollMarker.targetY - scrollMarker.height / 2
-                        when: !scrollMarker.dragging
-                    }
+                    x: targetX - width / 2
+                    y: targetY - height / 2
 
                     Rectangle {
                         anchors.centerIn: parent
@@ -131,9 +121,7 @@ Item {
                         enabled: typeof EditorModel !== 'undefined' && EditorModel.editing
                         target: parent
                         onActiveChanged: {
-                            if (active) {
-                                scrollMarker.dragging = true
-                            } else {
+                            if (!active) {
                                 var cx = scrollMarker.x + scrollMarker.width / 2
                                 var cy = scrollMarker.y + scrollMarker.height / 2
                                 var xPct = (cx - mouseRender.x - mouseRender.paintedX) / mouseRender.paintedW
@@ -144,7 +132,8 @@ Item {
                                                                  xPct, yPct,
                                                                  scrollMarker.modelData.side,
                                                                  scrollMarker.modelData.labelOffsetYPct)
-                                scrollMarker.dragging = false
+                                scrollMarker.x = Qt.binding(function() { return scrollMarker.targetX - scrollMarker.width / 2 })
+                                scrollMarker.y = Qt.binding(function() { return scrollMarker.targetY - scrollMarker.height / 2 })
                             }
                         }
                     }
@@ -159,14 +148,8 @@ Item {
                 readonly property real hsX: hs ? hs.xPct : 0.73
                 readonly property real hsY: hs ? hs.yPct : 0.16
                 readonly property real hsOffY: hs ? hs.labelOffsetYPct : 0
-                Binding on x {
-                    value: mouseRender.x + mouseRender.paintedX + mouseRender.paintedW * scrollCallout.hsX + 16
-                    when: !scrollCallout.dragging
-                }
-                Binding on y {
-                    value: mouseRender.y + mouseRender.paintedY + mouseRender.paintedH * scrollCallout.hsY - scrollCallout.height / 2
-                    when: !scrollCallout.dragging
-                }
+                targetX: mouseRender.x + mouseRender.paintedX + mouseRender.paintedW * scrollCallout.hsX + 16
+                targetY: mouseRender.y + mouseRender.paintedY + mouseRender.paintedH * scrollCallout.hsY - scrollCallout.height / 2
 
                 hotspotIndex: hsIdx
                 hsXPct: hsX
@@ -200,14 +183,8 @@ Item {
                 readonly property real hsX: hs ? hs.xPct : 0.55
                 readonly property real hsY: hs ? hs.yPct : 0.51
                 readonly property real hsOffY: hs ? hs.labelOffsetYPct : 0
-                Binding on x {
-                    value: mouseRender.x + mouseRender.paintedX + mouseRender.paintedW * thumbCallout.hsX - thumbCallout.width - 16
-                    when: !thumbCallout.dragging
-                }
-                Binding on y {
-                    value: mouseRender.y + mouseRender.paintedY + mouseRender.paintedH * thumbCallout.hsY - thumbCallout.height / 2
-                    when: !thumbCallout.dragging
-                }
+                targetX: mouseRender.x + mouseRender.paintedX + mouseRender.paintedW * thumbCallout.hsX - thumbCallout.width - 16
+                targetY: mouseRender.y + mouseRender.paintedY + mouseRender.paintedH * thumbCallout.hsY - thumbCallout.height / 2
 
                 hotspotIndex: hsIdx
                 hsXPct: hsX
@@ -236,14 +213,8 @@ Item {
                 readonly property real hsX: hs ? hs.xPct : 0.83
                 readonly property real hsY: hs ? hs.yPct : 0.54
                 readonly property real hsOffY: hs ? hs.labelOffsetYPct : 0
-                Binding on x {
-                    value: mouseRender.x + mouseRender.paintedX + mouseRender.paintedW * pointerCallout.hsX + 16
-                    when: !pointerCallout.dragging
-                }
-                Binding on y {
-                    value: mouseRender.y + mouseRender.paintedY + mouseRender.paintedH * pointerCallout.hsY - pointerCallout.height / 2
-                    when: !pointerCallout.dragging
-                }
+                targetX: mouseRender.x + mouseRender.paintedX + mouseRender.paintedW * pointerCallout.hsX + 16
+                targetY: mouseRender.y + mouseRender.paintedY + mouseRender.paintedH * pointerCallout.hsY - pointerCallout.height / 2
 
                 hotspotIndex: hsIdx
                 hsXPct: hsX

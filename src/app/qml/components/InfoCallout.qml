@@ -19,10 +19,13 @@ Item {
     property real hsLabelOffsetYPct: 0
     property real pageWidth: 0
     property real pageHeight: 0
-    // Manual drag flag — cleared AFTER EditorModel update. Gating a Binding
-    // directly on cardDrag.active races DragHandler.onActiveChanged and snaps
-    // the card back to its pre-drag position.
-    property bool dragging: false
+
+    // Target position set by the parent page — survives DragHandler severing x/y.
+    property real targetX: 0
+    property real targetY: 0
+
+    x: targetX
+    y: targetY
 
     signal calloutClicked(string type)
 
@@ -110,7 +113,6 @@ Item {
             if (active) {
                 cardDrag.grabOffsetYPct = root.hsLabelOffsetYPct
                 cardDrag.grabY = root.y
-                root.dragging = true
             } else {
                 if (root.pageWidth > 0 && root.pageHeight > 0) {
                     var centroidX = root.x + root.width / 2
@@ -121,7 +123,8 @@ Item {
                                                      root.hsXPct, root.hsYPct,
                                                      newSide, newOffsetY)
                 }
-                root.dragging = false
+                root.x = Qt.binding(function() { return root.targetX })
+                root.y = Qt.binding(function() { return root.targetY })
             }
         }
     }

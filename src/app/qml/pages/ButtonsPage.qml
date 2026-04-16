@@ -112,19 +112,11 @@ Item {
                     // Label offset (some labels need to shift to avoid overlap)
                     readonly property real labelOffY: (cdata.labelOffsetYPct || 0) * deviceRender.paintedH
 
-                    // Position: left-side labels to the left, right-side to the right.
-                    // Conditional binding: active except while DragHandler is mutating x/y.
-                    // A self-referencing ternary here would sever the binding after first drag.
-                    Binding on x {
-                        value: cdata.side === "left"
-                               ? callout.hotX - callout.width - 24
-                               : callout.hotX + 24
-                        when: !callout.dragging
-                    }
-                    Binding on y {
-                        value: callout.hotY - callout.height / 2 + callout.labelOffY
-                        when: !callout.dragging
-                    }
+                    // Target position: left-side labels to the left, right-side to the right.
+                    targetX: cdata.side === "left"
+                             ? callout.hotX - callout.width - 24
+                             : callout.hotX + 24
+                    targetY: callout.hotY - callout.height / 2 + callout.labelOffY
 
                     // Connector line endpoint (the hotspot dot)
                     lineToX: hotX

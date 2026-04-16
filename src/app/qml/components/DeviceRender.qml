@@ -89,25 +89,14 @@ Item {
             // Skip non-configurable buttons
             visible: hp.configurable
 
-            // Manual drag flag — cleared AFTER EditorModel update so the Binding
-            // below reactivates with the refreshed targetX/targetY. Gating directly
-            // on `drag.active` races DragHandler.onActiveChanged.
-            property bool dragging: false
-
             // Target dot centre in root coordinates
             readonly property real targetX: root.paintedX + hp.hotspotXPct * root.paintedW
             readonly property real targetY: root.paintedY + hp.hotspotYPct * root.paintedH
 
             // 24x24 hit area — follows drag in editor mode, otherwise snaps to target.
             width: 24; height: 24
-            Binding on x {
-                value: markerItem.targetX - markerItem.width / 2
-                when: !markerItem.dragging
-            }
-            Binding on y {
-                value: markerItem.targetY - markerItem.height / 2
-                when: !markerItem.dragging
-            }
+            x: targetX - width / 2
+            y: targetY - height / 2
 
             // Invisible click hit zone centred on dot (for button selection, non-edit mode)
             MouseArea {
@@ -147,9 +136,7 @@ Item {
                 enabled: typeof EditorModel !== 'undefined' && EditorModel.editing
                 target: parent
                 onActiveChanged: {
-                    if (active) {
-                        markerItem.dragging = true
-                    } else {
+                    if (!active) {
                         var cx = markerItem.x + markerItem.width / 2
                         var cy = markerItem.y + markerItem.height / 2
                         var xPct = (cx - root.paintedX) / root.paintedW
@@ -160,7 +147,8 @@ Item {
                                                    xPct, yPct,
                                                    markerItem.hp.side,
                                                    markerItem.hp.labelOffsetYPct)
-                        markerItem.dragging = false
+                        markerItem.x = Qt.binding(function() { return markerItem.targetX - markerItem.width / 2 })
+                        markerItem.y = Qt.binding(function() { return markerItem.targetY - markerItem.height / 2 })
                     }
                 }
             }
