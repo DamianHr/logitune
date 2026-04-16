@@ -99,36 +99,18 @@ Item {
         }
     }
 
-    Connections {
-        target: DeviceModel
-        function onSelectedChanged() {
-            if (!cardDrag.active) {
-                root.x = root.targetX
-                root.y = root.targetY
-            }
-        }
-    }
-
-    // Editor-mode drag: translate root Item freely, on release snap side to the
-    // nearest half-page column and persist labelOffsetYPct as a delta from grab.
+    // Editor-mode drag: translate root Item freely, on release persist position.
     DragHandler {
         id: cardDrag
         enabled: typeof EditorModel !== 'undefined' && EditorModel.editing
         target: root
 
-        property real grabOffsetYPct: 0
-        property real grabY: 0
-
         onActiveChanged: {
-            if (active) {
-                cardDrag.grabOffsetYPct = root.hsLabelOffsetYPct
-                cardDrag.grabY = root.y
-            } else {
+            if (!active) {
                 if (root.pageWidth > 0 && root.pageHeight > 0) {
                     var centroidX = root.x + root.width / 2
                     var newSide = centroidX < root.pageWidth / 2 ? "left" : "right"
-                    var dy = root.y - cardDrag.grabY
-                    var newOffsetY = cardDrag.grabOffsetYPct + (dy / root.pageHeight)
+                    var newOffsetY = root.hsLabelOffsetYPct
                     EditorModel.updateScrollHotspot(root.hotspotIndex,
                                                      root.hsXPct, root.hsYPct,
                                                      newSide, newOffsetY)

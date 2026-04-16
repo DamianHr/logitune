@@ -116,16 +116,6 @@ Item {
                         opacity: 0.7
                     }
 
-                    Connections {
-                        target: DeviceModel
-                        function onSelectedChanged() {
-                            if (!scrollMarkerDrag.active) {
-                                scrollMarker.x = scrollMarker.targetX - scrollMarker.width / 2
-                                scrollMarker.y = scrollMarker.targetY - scrollMarker.height / 2
-                            }
-                        }
-                    }
-
                     DragHandler {
                         id: scrollMarkerDrag
                         enabled: typeof EditorModel !== 'undefined' && EditorModel.editing

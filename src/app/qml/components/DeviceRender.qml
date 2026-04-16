@@ -130,16 +130,6 @@ Item {
                 }
             }
 
-            Connections {
-                target: DeviceModel
-                function onSelectedChanged() {
-                    if (!drag.active) {
-                        markerItem.x = markerItem.targetX - markerItem.width / 2
-                        markerItem.y = markerItem.targetY - markerItem.height / 2
-                    }
-                }
-            }
-
             // Editor-mode drag handler — disabled (and effectively absent) in production.
             DragHandler {
                 id: drag
